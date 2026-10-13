@@ -29,6 +29,9 @@ jobs:
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/geo.py \
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/audit.py \
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/dlp_rules.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/icap_server.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/inspection.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/avscan.py \
             cloud/server/build_feeds.py cloud/server/feedserver.py
 
       - name: XML well-formed
@@ -39,6 +42,7 @@ jobs:
           shellcheck -S warning -s sh -e SC1091,SC2034,SC2086,SC2155 \
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/catalog.sh \
             security/layer7security/src/etc/rc.d/layer7security \
+            security/layer7security/src/etc/rc.d/layer7security_proxy \
             cloud/install.sh
 
       - name: Feed list builder self-test
@@ -73,8 +77,8 @@ jobs:
           print('ok')
           EOF
 
-      - name: Unit tests (detectors, audit log)
-        run: python3 -m unittest tests/test_dlp.py tests/test_audit.py
+      - name: Unit tests (detectors, audit log, ICAP scanner, download protection)
+        run: python3 -m unittest tests/test_dlp.py tests/test_audit.py tests/test_icap.py tests/test_av.py
 
       - name: No secrets in tree
         run: |

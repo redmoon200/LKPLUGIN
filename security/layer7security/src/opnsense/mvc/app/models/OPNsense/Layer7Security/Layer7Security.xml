@@ -375,9 +375,77 @@
                 <Default>50</Default>
                 <Required>Y</Required>
                 <MinimumValue>1</MinimumValue>
-                <MaximumValue>512</MaximumValue>
-                <ValidationMessage>Enter a size between 1 and 512 MB.</ValidationMessage>
+                <MaximumValue>200</MaximumValue>
+                <ValidationMessage>Enter a size between 1 and 200 MB.</ValidationMessage>
             </maxSizeMb>
+            <hashAction type="OptionField">
+                <Default>block</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Allow, do not look</off>
+                    <monitor>Detect and log only</monitor>
+                    <block>Block the download</block>
+                </OptionValues>
+            </hashAction>
+            <executableAction type="OptionField">
+                <Default>monitor</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Allow, do not look</off>
+                    <monitor>Detect and log only</monitor>
+                    <block>Block the download</block>
+                </OptionValues>
+            </executableAction>
+            <scriptAction type="OptionField">
+                <Default>monitor</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Allow, do not look</off>
+                    <monitor>Detect and log only</monitor>
+                    <block>Block the download</block>
+                </OptionValues>
+            </scriptAction>
+            <packageAction type="OptionField">
+                <Default>monitor</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Allow, do not look</off>
+                    <monitor>Detect and log only</monitor>
+                    <block>Block the download</block>
+                </OptionValues>
+            </packageAction>
+            <archiveAction type="OptionField">
+                <Default>off</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Allow, do not look</off>
+                    <monitor>Detect and log only</monitor>
+                    <block>Block the download</block>
+                </OptionValues>
+            </archiveAction>
+            <customHashes type="CSVListField">
+                <Required>N</Required>
+                <MaskPerItem>Y</MaskPerItem>
+                <Mask>/^[0-9a-fA-F]{64}$/</Mask>
+                <ValidationMessage>Enter SHA-256 hashes (64 hexadecimal characters), separated by commas.</ValidationMessage>
+            </customHashes>
+            <feedUrl type="TextField">
+                <Required>N</Required>
+                <Mask>/^https?:\/\/[^\s"'&lt;&gt;]{1,500}$/</Mask>
+                <ValidationMessage>Enter a http:// or https:// address.</ValidationMessage>
+            </feedUrl>
+            <feedAuthKey type="TextField">
+                <Required>N</Required>
+                <Mask>/^[A-Za-z0-9._~+\/=-]{0,200}$/</Mask>
+                <ValidationMessage>The key may only contain letters, digits and . _ ~ + / = -</ValidationMessage>
+            </feedAuthKey>
+            <feedHours type="IntegerField">
+                <Default>24</Default>
+                <Required>Y</Required>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>168</MaximumValue>
+                <ValidationMessage>Enter between 1 and 168 hours.</ValidationMessage>
+            </feedHours>
             <failMode type="OptionField">
                 <Default>open</Default>
                 <Required>Y</Required>

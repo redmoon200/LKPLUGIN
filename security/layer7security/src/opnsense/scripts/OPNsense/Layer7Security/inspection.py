@@ -47,13 +47,39 @@ DOMAIN = re.compile(r'^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$')
 STATS = '/var/run/layer7security/icap_stats.json'
 
 
+def av_domains():
+    """HTTPS sites chosen for download protection"""
+    try:
+        with open(SETTINGS) as f:
+            doms = (json.load(f).get('av') or {}).get('https_domains') or []
+    except (OSError, ValueError):
+        return []
+    return sorted({d.lower().lstrip('.') for d in doms if DOMAIN.match(d.lower().lstrip('.'))})
+
+
 def catalog_domains():
     try:
         with open(CATALOG) as f:
-            doms = sorted({d.lower() for s in json.load(f) for d in s.get('domains', []) if DOMAIN.match(d.lower())})
+            doms = {d.lower() for s in json.load(f) for d in s.get('domains', []) if DOMAIN.match(d.lower())}
     except (OSError, ValueError):
-        doms = []
-    return doms
+        doms = set()
+    return sorted(doms | set(av_domains()))      # sites the CA may sign for: AI services and chosen download sites
+
+
+def ca_check():
+    """configured inspection sites the existing CA is not allowed to sign for"""
+    if not os.path.exists(CA_CRT):
+        return {'uncovered': []}
+    allowed = ca_info().get('constraints', [])
+    wanted = set(av_domains())
+    try:
+        with open(SETTINGS) as f:
+            for r in json.load(f).get('rules', []):
+                wanted |= {d.lower() for d in r.get('domains', []) if DOMAIN.match(d.lower())}
+    except (OSError, ValueError):
+        pass
+    bad = sorted(d for d in wanted if not any(d == a or d.endswith('.' + a) for a in allowed))
+    return {'uncovered': bad}
 
 
 def run(args, **kw):
@@ -208,8 +234,9 @@ def build_squid(cfg):
         bypass = 'on' if av.get('failMode') == 'open' else 'off'
         lines.append('icap_service l7_av respmod_precache icap://127.0.0.1:%d/av bypass=%s routing=off' % (ICAP_PORT, bypass))
         ai_doms = sorted({d for r in rules for d in r['domains'] if DOMAIN.match(d)})
-        if ai_doms:           # streaming AI responses are never buffered for scanning
-            lines.append('acl l7_av_skip dstdomain ' + ' '.join('.' + d for d in ai_doms))
+        skip = sorted(set(ai_doms) | {d.lstrip('.') for d in av.get('skip', []) if DOMAIN.match(d.lstrip('.'))})
+        if skip:              # streaming AI responses are never buffered for scanning; neither are trusted sites
+            lines.append('acl l7_av_skip dstdomain ' + ' '.join('.' + d for d in skip))
             lines.append('adaptation_access l7_av deny l7_av_skip')
         lines.append('adaptation_access l7_av allow all')
     return '\n'.join(lines) + '\n'
@@ -293,6 +320,8 @@ def main():
         out = ca_init('--force' in a)
     elif cmd == 'ca-info':
         out = ca_info()
+    elif cmd == 'ca-check':
+        out = ca_check()
     elif cmd == 'ca-pem':
         sys.stdout.write(ca_pem())
         return

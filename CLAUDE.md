@@ -83,7 +83,13 @@ docs/                         ARCHITECTURE, USER-GUIDE, ENGINE-COMPARISON, PROGR
 - P3 Dashboard - done
 - P4 Blocking via pf tables + DNS filtering (+ DNS-learned blocking) - done
 - P5 Per-VLAN / user / scheduled policies - done (VLAN test: see PROGRESS)
-- P6 Hardening, packaging, CI, release - done for 0.1.0 and 0.2.0, see PROGRESS
+- P6 Hardening, packaging, CI, release - done for 0.1.0, 0.2.0 and 0.3.0, see PROGRESS
 - v0.2.0 adds MAC binding (pf ether rules in anchor l7sec_ether, strict mode, device
   discovery, spoof events, static ARP) and GeoIP filtering (geo.py database + per-policy
   pf tables, country tags on flows)
+- v0.3.0 adds AI service control (catalog + engine `ai` flags), the AI audit log
+  (`audit.py`, hash chain), TLS inspection (`inspection.py`: name-constrained CA, Squid
+  SSL-bump config; `icap_server.py` `/dlp` with `dlp_rules.py`) and download protection
+  (`avscan.py` `/av`: file types and SHA-256 reputation, no signature engine).
+  Proxy service: `rc.d/layer7security_proxy`. Tests: `tests/test_{dlp,audit,icap,av}.py`,
+  e2e sections `ai audit inspect av`, `tests/ui_crud3.py`.

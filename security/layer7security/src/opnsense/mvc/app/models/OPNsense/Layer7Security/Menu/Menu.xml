@@ -9,6 +9,7 @@
             <AiServices VisibleName="AI Services" order="52" url="/ui/layer7security/ai"/>
             <AiInspection VisibleName="AI Inspection" order="53" url="/ui/layer7security/inspection"/>
             <AiAudit VisibleName="AI Audit" order="54" url="/ui/layer7security/audit"/>
+            <Antivirus VisibleName="Antivirus" order="56" url="/ui/layer7security/antivirus"/>
             <MacBinding VisibleName="MAC Binding" order="55" url="/ui/layer7security/macbinding"/>
             <GeoIP VisibleName="GeoIP" order="57" url="/ui/layer7security/geoip"/>
             <Settings order="60" url="/ui/layer7security/settings"/>

@@ -11,6 +11,13 @@ https://github.com/redmoon200/LKPLUGIN
 Plugin Changelog
 ================
 
+0.3.0
+
+* add AI service visibility and control (23 services identified by TLS/QUIC server name and DNS; allow, monitor or block; QUIC block)
+* add AI content inspection: selective TLS inspection with a name-constrained CA and an ICAP data-loss scanner (payment cards, identity numbers, API keys, source code)
+* add a tamper-evident AI audit log (masked snippets, hash chain, export, syslog, privacy notice)
+* add download protection: file-type control and SHA-256 malware-hash reputation for HTTP and chosen HTTPS sites
+
 0.2.0
 
 * add MAC binding (pf ether rules, strict mode, device discovery, spoof alerts, static ARP)

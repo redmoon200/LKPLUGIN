@@ -6,7 +6,7 @@
 #
 # ICAP server (RFC 3507) used by Squid for
 #   /dlp  REQMOD   data-loss checks on what is sent to AI services
-#   /av   RESPMOD  antivirus scan of downloads through ClamAV (added in avscan.py)
+#   /av   RESPMOD  download protection: file types and hash reputation (avscan.py)
 #
 # Listens on 127.0.0.1 only. Settings come from inspection.json and are
 # re-read on SIGHUP. Detections go to the audit chain in masked form; the
@@ -24,6 +24,7 @@ from urllib.parse import urlsplit
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import audit  # noqa: E402
 import dlp_rules  # noqa: E402
+import avscan  # noqa: E402
 
 SETTINGS = os.environ.get('L7_INSPECTION_JSON', '/usr/local/etc/layer7security/inspection.json')
 CATALOG = os.environ.get('L7_AI_CATALOG', '/usr/local/share/layer7security/ai_services.json')
@@ -69,6 +70,7 @@ def load_settings():
         if str(data.get('blockMessage', '')).strip():
             merged['blockMessage'] = str(data['blockMessage'])[:500]
         merged['orgName'] = str(data.get('orgName', ''))[:80]
+        avscan.configure(data.get('av') or {})
     except (OSError, ValueError):
         pass
     settings = merged
@@ -302,10 +304,18 @@ async def handle_dlp(method, uri, headers, blocks, body, total, truncated):
 
 
 HANDLERS = {'/dlp': handle_dlp}
+KEEP = {}
 
 
-def register(path, handler):
+def register(path, handler, keep=None):
+    """keep: callable giving how many body bytes the service needs buffered"""
     HANDLERS[path] = handler
+    if keep:
+        KEEP[path] = keep
+
+
+avscan.bind(sys.modules[__name__])
+register('/av', avscan.handle_av, avscan.keep_bytes)
 
 
 async def serve_client(reader, writer):
@@ -323,7 +333,7 @@ async def serve_client(reader, writer):
             method, uri = bits[0].upper(), bits[1]
             path = urlsplit(uri).path.rstrip('/') or '/'
             handler = HANDLERS.get(path)
-            keep = settings['maxBodyKb'] * 1024
+            keep = KEEP[path]() if path in KEEP else settings['maxBodyKb'] * 1024
             try:
                 blocks, body, total, trunc = await read_message(reader, headers, keep if method != 'OPTIONS' else 0)
                 if handler is None:
