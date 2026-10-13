@@ -74,6 +74,7 @@ static uint64_t flows_total, classified_total, pkts_total, bytes_total;
 static time_t started;
 static volatile sig_atomic_t stop_flag, reload_flag;
 static cap_t caps[L7_MAX_IFACES];
+static int skip_tagged;
 static const char *cfg_path = "/usr/local/etc/layer7security/engine.conf";
 int g_debug;
 
@@ -110,8 +111,22 @@ ndpi_start(void)
 {
 	if ((g_ctx = ndpi_global_init()) == NULL)
 		return -1;
+#if defined(NDPI_MAJOR) && NDPI_MAJOR >= 6
+	/*
+	 * nDPI 6 asks which license applies. The default is the not-for-profit
+	 * LGPL mode, which suits this open-source project; a commercial
+	 * deployment must hold a license from ntop and build with
+	 * -DL7_NDPI_LICENSE=<enum ndpi_license_type value>.
+	 */
+#ifndef L7_NDPI_LICENSE
+#define L7_NDPI_LICENSE NDPI_LICENSE_NOT_FOR_PROFIT_LGPL
+#endif
+	if ((mod = ndpi_init_detection_module(g_ctx, L7_NDPI_LICENSE)) == NULL)
+		return -1;
+#else
 	if ((mod = ndpi_init_detection_module(g_ctx)) == NULL)
 		return -1;
+#endif
 	if (ndpi_finalize_initialization(mod) != 0)
 		return -1;
 	return 0;
@@ -679,6 +694,13 @@ on_packet(u_char *user, const struct pcap_pkthdr *h, const u_char *pkt)
 		p += ETH_HLEN;
 		len -= ETH_HLEN;
 		while ((et == 0x8100 || et == 0x88a8) && len >= 4) {
+			/*
+			 * A monitored VLAN interface (vlanX) sees the same frames
+			 * untagged; counting the tagged copy on its parent would
+			 * double every flow, so skip tagged frames in that case.
+			 */
+			if (skip_tagged)
+				return;
 			et = (uint16_t)((p[2] << 8) | p[3]);
 			p += 4;
 			len -= 4;
@@ -826,6 +848,9 @@ main(int argc, char **argv)
 		return 1;
 	}
 	cfg.niface = opened;
+	for (i = 0; i < opened; i++)
+		if (strncmp(caps[i].name, "vlan", 4) == 0)
+			skip_tagged = 1;
 
 	signal(SIGTERM, on_signal);
 	signal(SIGINT, on_signal);
