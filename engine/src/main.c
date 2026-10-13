@@ -53,6 +53,7 @@ typedef struct flow {
 	uint32_t npkts;
 	char iface[16];
 	char master[40], app[48], cat[40], host[96], policy[64];
+	char country[4];	/* server country, empty when unknown or local */
 	struct ndpi_flow_struct *nf;
 	uint8_t dirty;
 } flow_t;
@@ -247,7 +248,7 @@ flow_persist(flow_t *f, int final)
 		addr_str(&f->cli, s, sizeof(s));
 		addr_str(&f->srv, d, sizeof(d));
 		f->db_id = store_flow_insert(f->iface, f->l4, s, d, f->cport, f->sport, f->master,
-		    f->app, f->cat, f->host, (time_t)(f->t_first_ms / 1000), act, f->policy);
+		    f->app, f->cat, f->host, (time_t)(f->t_first_ms / 1000), act, f->policy, f->country);
 		f->t_written = now;
 		if (f->db_id == 0)
 			return;
@@ -414,6 +415,7 @@ flow_get(const addr_t *a, uint16_t pa, const addr_t *b, uint16_t pb, uint8_t l4,
 	f->l4 = l4;
 	f->hash = h;
 	f->t_first_ms = ts_ms;
+	snprintf(f->country, sizeof(f->country), "%s", geo_lookup(&f->srv));
 	snprintf(f->iface, sizeof(f->iface), "%s", iface);
 	snprintf(f->master, sizeof(f->master), "Unknown");
 	snprintf(f->app, sizeof(f->app), "Unknown");
@@ -729,6 +731,27 @@ on_packet(u_char *user, const struct pcap_pkthdr *h, const u_char *pkt)
 			p += 4;
 			len -= 4;
 		}
+		if (et == 0x0806) {
+			/* ARP: htype 1, ptype IPv4, hlen 6, plen 4; sender MAC at +8, sender IP at +14 */
+			if (len >= 28 && p[0] == 0 && p[1] == 1 && p[2] == 8 && p[3] == 0 && p[4] == 6 &&
+			    p[5] == 4) {
+				addr_t sip;
+
+				memset(&sip, 0, sizeof(sip));
+				sip.af = AF_INET;
+				memcpy(sip.a, p + 14, 4);
+				dev_seen(&cfg, p + 8, &sip, c->name, 1);
+			}
+			return;
+		}
+		if (et == 0x0800 && len >= 20) {
+			addr_t sip;
+
+			memset(&sip, 0, sizeof(sip));
+			sip.af = AF_INET;
+			memcpy(sip.a, p + 12, 4);
+			dev_seen(&cfg, pkt + 6, &sip, c->name, 0);
+		}
 		if (et != 0x0800 && et != 0x86dd)
 			return;
 	} else if (c->dlt != DLT_RAW) {
@@ -752,12 +775,14 @@ write_status(void)
 		return;
 	fprintf(f, "{\"version\":\"%s\",\"pid\":%d,\"started\":%ld,\"ts\":%ld,"
 	    "\"packets\":%llu,\"bytes\":%llu,\"flows_active\":%zu,\"flows_total\":%llu,"
-	    "\"classified\":%llu,\"dns_learned\":%llu,\"blocks\":%llu,\"db_rows\":%llu,\"policies\":%d,\"ifaces\":[",
+	    "\"classified\":%llu,\"dns_learned\":%llu,\"blocks\":%llu,\"db_rows\":%llu,\"policies\":%d,"
+	    "\"devices_new\":%llu,\"mac_spoofs\":%llu,\"geo_ranges\":%zu,\"ifaces\":[",
 	    L7_VERSION, (int)getpid(), (long)started, (long)now, (unsigned long long)pkts_total,
 	    (unsigned long long)bytes_total, nflows, (unsigned long long)flows_total,
 	    (unsigned long long)classified_total, (unsigned long long)dns_learned_total,
 	    (unsigned long long)pf_blocks_total(),
-	    (unsigned long long)store_rows(), policy_count());
+	    (unsigned long long)store_rows(), policy_count(), (unsigned long long)dev_new(),
+	    (unsigned long long)dev_spoofs(), geo_ranges());
 	for (i = 0; i < cfg.niface; i++) {
 		struct pcap_stat ps;
 
@@ -780,7 +805,8 @@ reload_policies(void)
 
 	pf_flush_all(&cfg);
 	policy_set(buf, n);
-	l7_log("loaded %d policies", n);
+	l7_log("loaded %d policies, %d bindings, %d geo ranges", n,
+	    dev_load_bindings(cfg.bindings_path), geo_load(cfg.geo_dir));
 }
 
 /* ---------------------------------------------------------------- main */
@@ -881,6 +907,7 @@ main(int argc, char **argv)
 	signal(SIGHUP, on_signal);
 	signal(SIGPIPE, SIG_IGN);
 	started = time(NULL);
+	dev_init_own();
 	reload_policies();
 	l7_log("l7engine %s started, %d interface(s)", L7_VERSION, opened);
 

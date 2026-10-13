@@ -73,7 +73,7 @@ cidr_match(const cidr_t *c, const addr_t *a)
 	return 1;
 }
 
-static int
+int
 cidr_parse(const char *s, cidr_t *c)
 {
 	char buf[64], *slash;
@@ -144,6 +144,14 @@ config_load(config_t *c, const char *path)
 			c->enforce = atoi(v);
 		else if (strcmp(k, "debug") == 0)
 			c->debug = atoi(v);
+		else if (strcmp(k, "bindings") == 0)
+			snprintf(c->bindings_path, sizeof(c->bindings_path), "%s", v);
+		else if (strcmp(k, "geo_dir") == 0)
+			snprintf(c->geo_dir, sizeof(c->geo_dir), "%s", v);
+		else if (strcmp(k, "net") == 0) {
+			if (c->nnet < 16 && cidr_parse(v, &c->nets[c->nnet]) == 0)
+				c->nnet++;
+		}
 	}
 	fclose(f);
 	if (c->flow_timeout < 5)

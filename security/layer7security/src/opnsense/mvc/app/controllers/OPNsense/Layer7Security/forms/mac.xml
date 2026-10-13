@@ -1,0 +1,20 @@
+<form>
+    <field>
+        <id>layer7security.general.macMode</id>
+        <label>MAC binding mode</label>
+        <type>dropdown</type>
+        <help>Protect: an IP address that is bound can only be used by its MAC address (spoofed traffic is dropped). Strict: additionally drop IPv4 traffic from every device that is not bound. Strict mode needs at least one binding on the interface and can lock out devices you forgot to add: add them first.</help>
+    </field>
+    <field>
+        <id>layer7security.general.macInterfaces</id>
+        <label>Enforced interfaces</label>
+        <type>select_multiple</type>
+        <help>Interfaces (LAN or VLAN) where bindings are enforced. Defaults to LAN.</help>
+    </field>
+    <field>
+        <id>layer7security.general.macStaticArp</id>
+        <label>Static ARP entries</label>
+        <type>checkbox</type>
+        <help>Create permanent ARP entries for bound IP addresses so forged ARP replies are ignored.</help>
+    </field>
+</form>

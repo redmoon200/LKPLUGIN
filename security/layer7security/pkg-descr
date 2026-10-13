@@ -11,6 +11,11 @@ https://github.com/redmoon200/LKPLUGIN
 Plugin Changelog
 ================
 
+0.2.0
+
+* add MAC binding (pf ether rules, strict mode, device discovery, spoof alerts, static ARP)
+* add GeoIP filtering (block/allow-only countries, per interface, exceptions) and country tags on flows
+
 0.1.0
 
 * initial release

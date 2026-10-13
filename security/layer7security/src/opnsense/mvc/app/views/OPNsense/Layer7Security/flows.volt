@@ -17,6 +17,7 @@
                 <th data-column-id="ts_end" data-formatter="time" data-width="10em">{{ lang._('Last seen') }}</th>
                 <th data-column-id="client" data-type="string">{{ lang._('Client') }}</th>
                 <th data-column-id="server" data-type="string">{{ lang._('Server') }}</th>
+                <th data-column-id="country" data-type="string" data-width="5em">{{ lang._('Country') }}</th>
                 <th data-column-id="sport" data-type="numeric" data-width="5em">{{ lang._('Port') }}</th>
                 <th data-column-id="app" data-type="string">{{ lang._('Application') }}</th>
                 <th data-column-id="category" data-type="string">{{ lang._('Category') }}</th>

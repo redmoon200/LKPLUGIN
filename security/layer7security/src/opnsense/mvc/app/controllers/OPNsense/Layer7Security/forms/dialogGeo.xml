@@ -1,0 +1,54 @@
+<form>
+    <field>
+        <id>geopolicy.enabled</id>
+        <label>Enabled</label>
+        <type>checkbox</type>
+    </field>
+    <field>
+        <id>geopolicy.name</id>
+        <label>Name</label>
+        <type>text</type>
+    </field>
+    <field>
+        <id>geopolicy.action</id>
+        <label>Action</label>
+        <type>dropdown</type>
+        <help>Block drops traffic to/from the selected countries. Allow only drops everything except the selected countries (private networks and the exceptions always stay reachable). Allow only does nothing until the country database is loaded.</help>
+    </field>
+    <field>
+        <id>geopolicy.direction</id>
+        <label>Direction</label>
+        <type>dropdown</type>
+        <help>Inbound: packets arriving from the country (use the WAN interface). Outbound: packets from your clients to the country (use the LAN/VLAN interfaces).</help>
+    </field>
+    <field>
+        <id>geopolicy.interfaces</id>
+        <label>Interfaces</label>
+        <type>select_multiple</type>
+        <help>Interfaces the rule applies to. Empty applies it everywhere.</help>
+    </field>
+    <field>
+        <id>geopolicy.countries</id>
+        <label>Countries</label>
+        <type>select_multiple</type>
+    </field>
+    <field>
+        <id>geopolicy.exceptions</id>
+        <label>Exceptions</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Addresses or networks that are never affected by this policy.</help>
+    </field>
+    <field>
+        <id>geopolicy.log</id>
+        <label>Log</label>
+        <type>checkbox</type>
+        <help>Write dropped packets to the firewall log.</help>
+    </field>
+    <field>
+        <id>geopolicy.description</id>
+        <label>Description</label>
+        <type>text</type>
+    </field>
+</form>

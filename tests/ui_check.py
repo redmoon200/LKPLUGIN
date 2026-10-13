@@ -28,6 +28,8 @@ PAGES = {
     '/ui/layer7security/policies': ['grid-policies', 'DialogPolicy', 'search_policy'],
     '/ui/layer7security/users': ['grid-users', 'DialogUser', 'search_user'],
     '/ui/layer7security/dns': ['frm_dns', 'dns/status', 'feedAct'],
+    '/ui/layer7security/macbinding': ['grid-bindings', 'DialogBinding', 'frm_mac', 'dashboard/devices'],
+    '/ui/layer7security/geoip': ['grid-geo', 'DialogGeo', 'frm_geo', 'geo/update'],
     '/ui/layer7security/settings': ['frm_general', 'layer7security.general.enabled'],
 }
 

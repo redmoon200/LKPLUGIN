@@ -137,6 +137,93 @@ else
 	echo "  SKIP no VLAN on the client"
 fi
 
+echo "== GeoIP (needs internet; destinations in DE, FR and the US)"
+clear_geo() { for u in $(api GET /api/layer7security/settings/search_geo | python -c "import json,sys; [print(r['uuid']) for r in json.load(sys.stdin)['rows']]" | tr -d ''); do api POST "/api/layer7security/settings/del_geo/$u" >/dev/null; done; }
+geo_url_ok() { [ "$(fetch "$1")" != "000" ]; }
+geo_blocked() { for _i in 1 2; do [ "$(fetch "$1")" != "000" ] && return 1; done; return 0; }
+clear_policies; clear_geo
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"interfaces":"lan","geoEnabled":"1"}}}' >/dev/null
+if ! opn 'test -s /var/db/layer7security/geo/v4.tsv && echo yes' | grep -q yes; then
+	api POST /api/layer7security/geo/update >/dev/null
+fi
+DE=https://www.hetzner.com; DE2=https://www.bund.de; FR=https://www.ovh.com; US=https://www.wikipedia.org
+if geo_url_ok $DE && geo_url_ok $FR && geo_url_ok $US; then
+	api POST /api/layer7security/settings/add_geo '{"geopolicy":{"enabled":"1","name":"t-geo-block","action":"block","direction":"out","interfaces":"lan","countries":"DE","exceptions":"","log":"0"}}' >/dev/null
+	apply
+	check "geo block: Germany is dropped" geo_blocked $DE
+	check "geo block: France still reachable" geo_url_ok $FR
+	check "geo block: the US still reachable" geo_url_ok $US
+	geo_counter() { opn "sh -c 'pfctl -s labels 2>/dev/null | grep l7geo_1_out'" | awk '{exit !($3 > 0)}'; }
+	check "pf rule counter shows dropped packets" geo_counter
+	clear_geo
+	api POST /api/layer7security/settings/add_geo '{"geopolicy":{"enabled":"1","name":"t-geo-allow","action":"allow","direction":"out","interfaces":"lan","countries":"FR","exceptions":"213.133.116.44/32","log":"0"}}' >/dev/null
+	apply
+	check "allow-only FR: France reachable" geo_url_ok $FR
+	check "allow-only FR: the exception (a German host) reachable" geo_url_ok $DE
+	check "allow-only FR: another German site dropped" geo_blocked $DE2
+	check "allow-only FR: the US dropped" geo_blocked $US
+	check "allow-only FR: DNS through the firewall still works" test "$(dns_status github.com)" = NOERROR
+	clear_geo
+	apply
+	cli 'for h in www.hetzner.com www.ovh.com www.wikipedia.org; do curl -sS -o /dev/null -m 6 https://$h 2>/dev/null; done' >/dev/null
+	sleep 6
+	geo_flows() { api POST /api/layer7security/flows/search '{"current":1,"rowCount":50,"searchPhrase":"hetzner","period":300}' | python -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if any(r['country']=='DE' for r in d['rows']) else 1)"; }
+	check "flows are tagged with the server country (DE)" geo_flows
+	geo_dash() { api GET '/api/layer7security/dashboard/countries?period=300' | python -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if {'DE','FR'} <= {r['country'] for r in d['rows']} else 1)"; }
+	check "dashboard top countries include DE and FR" geo_dash
+else
+	echo "  SKIP destinations not reachable"
+fi
+clear_geo
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"geoEnabled":"0"}}}' >/dev/null
+
+echo "== MAC binding (client ens4 + throw-away network namespaces)"
+clear_policies
+cli "cat > /tmp/spoof.sh" < "$(dirname "$0")/../lab/spoof.sh"
+cli 'sudo mkdir -p /etc/netns/spoof && echo "nameserver 10.77.0.1" | sudo tee /etc/netns/spoof/resolv.conf >/dev/null'
+CMAC=$(cli 'cat /sys/class/net/ens4/address' | tr -d '')
+clear_bindings() { for u in $(api GET /api/layer7security/settings/search_binding | python -c "import json,sys; [print(r['uuid']) for r in json.load(sys.stdin)['rows']]" | tr -d ''); do api POST "/api/layer7security/settings/del_binding/$u" >/dev/null; done; }
+clear_bindings
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"interfaces":"lan","macMode":"protect","macInterfaces":"lan","macStaticArp":"0"}}}' >/dev/null
+api POST /api/layer7security/settings/add_binding "{\"binding\":{\"enabled\":\"1\",\"name\":\"t-client\",\"mac\":\"$CMAC\",\"ip\":\"10.77.0.2\",\"interface\":\"\"}}" >/dev/null
+api POST /api/layer7security/settings/add_binding '{"binding":{"enabled":"1","name":"t-phantom","mac":"bc:24:11:99:99:99","ip":"10.77.0.50","interface":""}}' >/dev/null
+apply
+ns() { cli "sh /tmp/spoof.sh $1 $2" | tr -d ''; }
+ns_ok() { ns "$1" "$2" | grep -q "http 200"; }
+ns_dropped() { ns "$1" "$2" | grep -q "http 000"; }
+anchor_loaded() { opn 'pfctl -a l7sec_ether -s ether' | grep -q "from 10.77.0.50"; }
+check "ether rules are loaded in the l7sec_ether anchor" anchor_loaded
+check "protect: the bound client keeps working" reaches https://www.wikipedia.org
+check "protect: a device with the right MAC and IP works" ns_ok bc:24:11:99:99:99 10.77.0.50
+check "protect: the same IP from another MAC is dropped" ns_dropped 02:aa:bb:cc:dd:ee 10.77.0.50
+check "protect: an unbound IP is still allowed" ns_ok 02:aa:bb:cc:dd:ee 10.77.0.60
+spoof_event() { api GET /api/layer7security/flows/events | python -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if any(e['type']=='mac-spoof' and e['client']=='10.77.0.50' for e in d['events']) else 1)"; }
+check "the engine raised a mac-spoof event" spoof_event
+dev_states() { api GET '/api/layer7security/dashboard/devices?period=3600' | python -c "
+import json,sys
+st={(r['ip'],r['mac']):r['state'] for r in json.load(sys.stdin)['rows']}
+ok = st.get(('10.77.0.50','bc:24:11:99:99:99'))=='bound' and st.get(('10.77.0.50','02:aa:bb:cc:dd:ee'))=='spoof' and st.get(('10.77.0.60','02:aa:bb:cc:dd:ee'))=='unbound'
+sys.exit(0 if ok else 1)"; }
+check "discovered devices are classified bound / spoof / unbound" dev_states
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"macMode":"strict"}}}' >/dev/null
+apply
+check "strict: the bound client keeps working" reaches https://www.wikipedia.org
+check "strict: an unknown device is dropped" ns_dropped 02:aa:bb:cc:dd:ee 10.77.0.60
+api POST /api/layer7security/settings/add_binding '{"binding":{"enabled":"1","name":"t-guest","mac":"02:aa:bb:cc:dd:ee","ip":"","interface":""}}' >/dev/null
+apply
+check "strict: a MAC-only binding lets that device on" ns_ok 02:aa:bb:cc:dd:ee 10.77.0.60
+check "strict: ... but it cannot take over a bound IP" ns_dropped 02:aa:bb:cc:dd:ee 10.77.0.50
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"macMode":"protect","macStaticArp":"1"}}}' >/dev/null
+apply
+static_arp() { opn 'arp -an' | grep "(10.77.0.50)" | grep -q permanent; }
+check "static ARP: bound addresses get permanent entries" static_arp
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"macMode":"off"}}}' >/dev/null
+clear_bindings
+apply
+anchor_gone() { ! opn 'pfctl -a l7sec_ether -s ether' | grep -q "ether"; }
+check "off: the anchor is empty again" anchor_gone
+check "off: the client still works" reaches https://www.wikipedia.org
+
 echo "== DNS filtering, global and per group"
 clear_policies
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"dnsFilter":"1","dnsMode":"nxdomain","dnsCategories":"ads","dnsBlock":"blocked-test.example","dnsAllow":""}}}' >/dev/null

@@ -26,11 +26,17 @@ their code, assets or branding. "OPNsense" is a trademark of Deciso B.V.
   gambling, social, streaming, games) and custom domains in Unbound, with
   per-group views so different networks can have different lists. A small cloud
   feed server in `cloud/` builds the lists from public sources.
+- **MAC binding**: bind IP addresses to MACs in the kernel (pf ether rules): a bound
+  address can only be used by its MAC; strict mode also drops unknown devices.
+  Device discovery with one-click bind, spoof alerts, optional static ARP.
+- **GeoIP filtering**: block or allow-only countries, inbound or outbound, per
+  interface, with exceptions; country tags on every flow and a top-countries
+  chart. Uses the public-domain iptoasn.com database (or your own mirror).
 - Native OPNsense plugin: MVC GUI, REST API, configd actions, rc.d service.
 
 ## Status
 
-v0.1.0, tested on the lab described in [docs/PROGRESS.md](docs/PROGRESS.md)
+v0.2.0, tested on the lab described in [docs/PROGRESS.md](docs/PROGRESS.md)
 (OPNsense 26.1.11, end-to-end checks, fuzzed parsers, CI on GitHub). It is a
 young project: read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for what it
 does and does not do (no TLS decryption; blocking is per address and DNS name).
@@ -38,7 +44,7 @@ does and does not do (no TLS decryption; blocking is per address and DNS name).
 ## Install
 
 ```sh
-pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.1.0/os-layer7security-0.1.0.pkg
+pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.2.0/os-layer7security-0.2.0.pkg
 ```
 
 Then open **Services > Layer 7 Security** and follow

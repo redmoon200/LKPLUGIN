@@ -5,7 +5,7 @@
 # libpcap and clang are part of the base system).
 
 PROG=	l7engine
-SRCS=	src/main.c src/config.c src/store.c src/policy.c
+SRCS=	src/main.c src/config.c src/store.c src/policy.c src/geo.c src/dev.c
 
 LOCALBASE?=	/usr/local
 CC?=		cc
@@ -24,8 +24,8 @@ ${PROG}: ${OBJS}
 	${CC} ${CFLAGS} -c -o $@ $<
 
 # Robustness test: parsers under AddressSanitizer + UBSan with mutated packets
-fuzz: tests/fuzz.c src/main.c src/config.c src/store.c src/policy.c src/l7.h
-	${CC} -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer ${CFLAGS} ${LDFLAGS} 		-o fuzz tests/fuzz.c src/config.c src/store.c src/policy.c ${LIBS}
+fuzz: tests/fuzz.c src/main.c src/config.c src/store.c src/policy.c src/geo.c src/dev.c src/l7.h
+	${CC} -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer ${CFLAGS} ${LDFLAGS} 		-o fuzz tests/fuzz.c src/config.c src/store.c src/policy.c src/geo.c src/dev.c ${LIBS}
 
 check: fuzz
 	./fuzz 300000 1

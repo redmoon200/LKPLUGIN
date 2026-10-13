@@ -17,6 +17,7 @@
 #undef main
 
 #include <stdlib.h>
+#include <unistd.h>
 
 static uint32_t rng_state = 1;
 
@@ -248,11 +249,81 @@ main(int argc, char **argv)
 	snprintf(pol[0].table, sizeof(pol[0].table), "l7_blk_1");
 	policy_set(pol, 1);
 
+	/* device tracking and country lookup get real (tiny) data files */
+	{
+		char dir[] = "/tmp/l7fuzz.XXXXXX", path[128];
+		FILE *f;
+
+		if (mkdtemp(dir) != NULL) {
+			snprintf(path, sizeof(path), "%s/v4.tsv", dir);
+			if ((f = fopen(path, "w")) != NULL) {
+				fprintf(f, "16777216 16777471 US\n3232235520 3232301055 DE\n3758096384 4026531839 FR\n");
+				fclose(f);
+			}
+			snprintf(path, sizeof(path), "%s/v6.tsv", dir);
+			if ((f = fopen(path, "w")) != NULL) {
+				fprintf(f, "20010db8000000000000000000000000 20010db8ffffffffffffffffffffffff DE\n");
+				fprintf(f, "garbage line\n");
+				fclose(f);
+			}
+			geo_load(dir);
+			snprintf(path, sizeof(path), "%s/bindings.conf", dir);
+			if ((f = fopen(path, "w")) != NULL) {
+				fprintf(f, "bc:24:11:99:99:99\t10.77.0.50\t-\tphantom\n");
+				fprintf(f, "bad line\n");
+				fclose(f);
+			}
+			dev_load_bindings(path);
+		}
+		cfg.nnet = 1;
+		cidr_parse("10.77.0.0/24", &cfg.nets[0]);
+		dev_init_own();
+	}
+
 	for (it = 0; it < iters; it++) {
 		const char *name = names[rnd() % (sizeof(names) / sizeof(names[0]))];
-		int pll, len, kind = (int)(rnd() % 6);
+		int pll, len, kind = (int)(rnd() % 9), framed = 0;
 
 		switch (kind) {
+		case 6:
+		case 7:
+		case 8: {
+			/* Ethernet level: ARP, IPv4/IPv6 behind an Ethernet header, optionally VLAN tagged */
+			static const uint16_t ets[] = { 0x0806, 0x0800, 0x86dd, 0x8100, 0x88a8, 0x0842 };
+			uint16_t et = ets[rnd() % (sizeof(ets) / sizeof(ets[0]))];
+			int off = 14, i;
+
+			for (i = 0; i < 12; i++)
+				pkt[i] = (uint8_t)rnd();
+			if (kind == 8)
+				pkt[6] = 0xbc, pkt[7] = 0x24, pkt[8] = 0x11;	/* look like a lab MAC */
+			if (et == 0x8100 || et == 0x88a8) {
+				put16(pkt + 12, et);
+				put16(pkt + 14, (uint16_t)(rnd() & 0xfff));
+				et = (rnd() & 1) ? 0x0800 : 0x0806;
+				off = 18;
+			}
+			put16(pkt + (off - 2), et);
+			if (et == 0x0806) {
+				for (i = 0; i < 28; i++)
+					pkt[off + i] = (uint8_t)rnd();
+				pkt[off] = 0; pkt[off + 1] = 1; pkt[off + 2] = 8; pkt[off + 3] = 0;
+				pkt[off + 4] = 6; pkt[off + 5] = 4;
+				if (rnd() & 1) {		/* sender IP inside the monitored net, maybe a bound one */
+					pkt[off + 14] = 10; pkt[off + 15] = 77; pkt[off + 16] = 0;
+					pkt[off + 17] = (rnd() & 1) ? 50 : (uint8_t)rnd();
+				}
+				len = off + 28;
+			} else {
+				pll = build_clienthello(pl, name);
+				len = wrap_ip4(pkt + off, IPPROTO_TCP, 40000 + (int)(rnd() % 50), 443, pl, pll);
+				pkt[off + 12] = 10; pkt[off + 13] = 77; pkt[off + 14] = 0;
+				pkt[off + 15] = (rnd() & 1) ? 50 : (uint8_t)rnd();
+				len += off;
+			}
+			framed = 1;
+			break;
+		}
 		case 0:
 			pll = build_clienthello(pl, name);
 			len = wrap_ip4(pkt, IPPROTO_TCP, 40000 + (int)(rnd() % 50), 443, pl, pll);
@@ -294,7 +365,19 @@ main(int argc, char **argv)
 
 			memcpy(exact, pkt, (size_t)len);
 			memcpy(copy, pkt, (size_t)len);
-			handle_l3(exact, len, t, "fz0");
+			if (framed) {
+				struct pcap_pkthdr hdr;
+				static cap_t fcap = { NULL, "fz0", DLT_EN10MB, -1 };
+
+				memset(&hdr, 0, sizeof(hdr));
+				hdr.caplen = hdr.len = (bpf_u_int32)len;
+				hdr.ts.tv_sec = (time_t)(t / 1000);
+				hdr.ts.tv_usec = (suseconds_t)((t % 1000) * 1000);
+				skip_tagged = (int)(it % 3 == 0);
+				on_packet((u_char *)&fcap, &hdr, exact);
+			} else {
+				handle_l3(exact, len, t, "fz0");
+			}
 			free(exact);
 		}
 		t += 1 + (rnd() % 50);

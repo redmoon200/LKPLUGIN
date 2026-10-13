@@ -53,6 +53,11 @@
             <div class="l7-chart"><canvas id="c-cats"></canvas></div>
         </div>
         <div class="l7-card">
+            <h3>{{ lang._('Top countries by volume') }}</h3>
+            <div class="l7-chart"><canvas id="c-countries"></canvas></div>
+            <div class="l7-muted" id="countries-empty" style="display: none;">{{ lang._('No country data yet: enable GeoIP and update the database.') }}</div>
+        </div>
+        <div class="l7-card">
             <h3>{{ lang._('Top clients') }}</h3>
             <table class="table table-condensed table-striped" id="tbl-clients">
                 <thead><tr><th>{{ lang._('Client') }}</th><th>{{ lang._('Flows') }}</th><th>{{ lang._('Down') }}</th><th>{{ lang._('Up') }}</th><th>{{ lang._('Blocked') }}</th></tr></thead>
@@ -174,6 +179,30 @@
             });
         }
 
+        function flag(cc) {
+            if (!/^[A-Z]{2}$/.test(cc)) { return ''; }
+            return String.fromCodePoint(0x1F1E6 + cc.charCodeAt(0) - 65, 0x1F1E6 + cc.charCodeAt(1) - 65) + ' ';
+        }
+
+        function loadCountries() {
+            ajaxGet('/api/layer7security/dashboard/countries', { period: period() }, function (d) {
+                if (!d || !d.rows) { return; }
+                $('#countries-empty').toggle(d.rows.length === 0);
+                chart('c-countries', {
+                    type: 'bar',
+                    data: {
+                        labels: d.rows.map(function (r) { return flag(r.country) + r.country; }),
+                        datasets: [{ data: d.rows.map(function (r) { return r.bytes; }), backgroundColor: palette[2] }]
+                    },
+                    options: {
+                        indexAxis: 'y', maintainAspectRatio: false, animation: false,
+                        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return bytes(c.parsed.x); } } } },
+                        scales: { x: { ticks: { callback: function (v) { return bytes(v); } } } }
+                    }
+                });
+            });
+        }
+
         function loadClients() {
             ajaxGet('/api/layer7security/dashboard/clients', { period: period() }, function (d) {
                 const body = $('#tbl-clients tbody').empty();
@@ -200,7 +229,7 @@
         }
 
         function refresh() {
-            loadEngine(); loadSummary(); loadTimeline(); loadApps(); loadCats(); loadClients(); loadBlocks();
+            loadEngine(); loadSummary(); loadTimeline(); loadApps(); loadCats(); loadCountries(); loadClients(); loadBlocks();
         }
 
         $('#l7-period').on('change', refresh);

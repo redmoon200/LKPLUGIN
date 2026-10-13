@@ -76,6 +76,70 @@ class SettingsController extends ApiMutableModelControllerBase
         return $this->delBase('users.user', $uuid);
     }
 
+    public function searchBindingAction()
+    {
+        return $this->searchBase('bindings.binding', ['enabled', 'name', 'mac', 'ip', 'interface', 'description'], 'name');
+    }
+
+    public function getBindingAction($uuid = null)
+    {
+        return $this->getBase('binding', 'bindings.binding', $uuid);
+    }
+
+    public function addBindingAction()
+    {
+        return $this->addBase('binding', 'bindings.binding');
+    }
+
+    public function setBindingAction($uuid)
+    {
+        return $this->setBase('binding', 'bindings.binding', $uuid);
+    }
+
+    public function delBindingAction($uuid)
+    {
+        return $this->delBase('bindings.binding', $uuid);
+    }
+
+    public function toggleBindingAction($uuid, $enabled = null)
+    {
+        return $this->toggleBase('bindings.binding', $uuid, $enabled);
+    }
+
+    public function searchGeoAction()
+    {
+        return $this->searchBase(
+            'geo.policy',
+            ['enabled', 'name', 'action', 'direction', 'interfaces', 'countries', 'exceptions', 'log', 'description'],
+            'name'
+        );
+    }
+
+    public function getGeoAction($uuid = null)
+    {
+        return $this->getBase('geopolicy', 'geo.policy', $uuid);
+    }
+
+    public function addGeoAction()
+    {
+        return $this->addBase('geopolicy', 'geo.policy');
+    }
+
+    public function setGeoAction($uuid)
+    {
+        return $this->setBase('geopolicy', 'geo.policy', $uuid);
+    }
+
+    public function delGeoAction($uuid)
+    {
+        return $this->delBase('geo.policy', $uuid);
+    }
+
+    public function toggleGeoAction($uuid, $enabled = null)
+    {
+        return $this->toggleBase('geo.policy', $uuid, $enabled);
+    }
+
     /** rebuild the application/category catalog from the installed nDPI */
     public function catalogAction()
     {

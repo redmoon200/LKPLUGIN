@@ -52,6 +52,12 @@ store_open(const char *path)
 	    "pkts_up INTEGER DEFAULT 0, pkts_down INTEGER DEFAULT 0,"
 	    "action TEXT, policy TEXT)") != 0)
 		return -1;
+	/* older databases lack the country column; failure just means it exists */
+	sqlite3_exec(db, "ALTER TABLE flows ADD COLUMN country TEXT", NULL, NULL, NULL);
+	exec("CREATE TABLE IF NOT EXISTS devices("
+	    "ip TEXT, mac TEXT, iface TEXT, first_seen INTEGER, last_seen INTEGER,"
+	    "hits INTEGER DEFAULT 0, PRIMARY KEY(ip, mac, iface))");
+	exec("CREATE INDEX IF NOT EXISTS devices_seen ON devices(last_seen)");
 	exec("CREATE INDEX IF NOT EXISTS flows_end ON flows(ts_end)");
 	exec("CREATE INDEX IF NOT EXISTS flows_client ON flows(client)");
 	exec("CREATE INDEX IF NOT EXISTS flows_app ON flows(app)");
@@ -63,7 +69,7 @@ store_open(const char *path)
 
 	if (sqlite3_prepare_v2(db,
 	    "INSERT INTO flows(ts_start,ts_end,iface,l4,client,server,cport,sport,master,app,"
-	    "category,host,action,policy) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", -1, &st_ins, NULL) != SQLITE_OK ||
+	    "category,host,action,policy,country) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", -1, &st_ins, NULL) != SQLITE_OK ||
 	    sqlite3_prepare_v2(db,
 	    "UPDATE flows SET ts_end=?,bytes_up=?,bytes_down=?,pkts_up=?,pkts_down=?,master=?,"
 	    "app=?,category=?,host=?,action=?,policy=? WHERE id=?", -1, &st_upd, NULL) != SQLITE_OK ||
@@ -120,7 +126,7 @@ bind_text(sqlite3_stmt *s, int i, const char *v)
 uint64_t
 store_flow_insert(const char *iface, int l4, const char *cli, const char *srv, int cport,
     int sport, const char *master, const char *app, const char *cat, const char *host,
-    time_t t0, const char *action, const char *policy)
+    time_t t0, const char *action, const char *policy, const char *country)
 {
 	if (!db)
 		return 0;
@@ -140,6 +146,7 @@ store_flow_insert(const char *iface, int l4, const char *cli, const char *srv, i
 	bind_text(st_ins, 12, host);
 	bind_text(st_ins, 13, action);
 	bind_text(st_ins, 14, policy);
+	bind_text(st_ins, 15, country);
 	if (sqlite3_step(st_ins) != SQLITE_DONE) {
 		l7_log("insert flow: %s", sqlite3_errmsg(db));
 		return 0;
@@ -192,6 +199,45 @@ store_event(const char *type, const char *cli, const char *srv, const char *app,
 	bind_text(st_evt, 9, detail);
 	if (sqlite3_step(st_evt) != SQLITE_DONE)
 		l7_log("insert event: %s", sqlite3_errmsg(db));
+}
+
+/* returns 1 when the (ip, mac, iface) triple is new, 0 when it was known */
+int
+store_device(const char *ip, const char *mac, const char *iface, time_t now, uint32_t hits)
+{
+	sqlite3_stmt *s;
+	int isnew = 0;
+
+	if (!db)
+		return -1;
+	begin();
+	if (sqlite3_prepare_v2(db,
+	    "INSERT OR IGNORE INTO devices(ip,mac,iface,first_seen,last_seen,hits) VALUES(?,?,?,?,?,?)",
+	    -1, &s, NULL) != SQLITE_OK)
+		return -1;
+	sqlite3_bind_text(s, 1, ip, -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(s, 2, mac, -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(s, 3, iface, -1, SQLITE_TRANSIENT);
+	sqlite3_bind_int64(s, 4, now);
+	sqlite3_bind_int64(s, 5, now);
+	sqlite3_bind_int64(s, 6, hits);
+	if (sqlite3_step(s) == SQLITE_DONE)
+		isnew = sqlite3_changes(db) == 1;	/* ignored duplicates change nothing */
+	sqlite3_finalize(s);
+	if (!isnew) {
+		if (sqlite3_prepare_v2(db,
+		    "UPDATE devices SET last_seen=?, hits=hits+? WHERE ip=? AND mac=? AND iface=?",
+		    -1, &s, NULL) != SQLITE_OK)
+			return -1;
+		sqlite3_bind_int64(s, 1, now);
+		sqlite3_bind_int64(s, 2, hits);
+		sqlite3_bind_text(s, 3, ip, -1, SQLITE_TRANSIENT);
+		sqlite3_bind_text(s, 4, mac, -1, SQLITE_TRANSIENT);
+		sqlite3_bind_text(s, 5, iface, -1, SQLITE_TRANSIENT);
+		sqlite3_step(s);
+		sqlite3_finalize(s);
+	}
+	return isnew;
 }
 
 void

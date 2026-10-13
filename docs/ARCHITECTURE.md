@@ -59,6 +59,51 @@
   the client off); unusable addresses (loopback, link-local, unspecified) are
   never added.
 
+## MAC binding
+
+Bindings (name, MAC, optional IPv4, optional interface) are enforced in the
+kernel with pf **ether rules**, which match the Ethernet source and the layer-3
+address together. They cannot be emitted through the plugin API, so they live in
+the anchor `l7sec_ether` that apply.php / the firewall hook load with
+`pfctl -a l7sec_ether -f mac.rules`. The main ruleset only needs the line
+`ether anchor "l7sec_ether"`, and it must come before scrub/NAT; the hook
+emits it through a table declaration (printed before those sections). pf
+evaluates ether rules "last match wins", so per interface the anchor holds:
+
+1. strict mode: `block` all IPv4, pass DHCP discovery (`l3 from 0.0.0.0`)
+2. strict mode: pass the MAC-only bindings
+3. for each bound IP: `block` that IP from everyone ...
+4. ... and `pass` it again from its own MAC
+
+so a bound address can only be used by its MAC and, in strict mode, unknown
+devices get no IPv4 at all. IPv4 only (EtherType 0x0800); ARP and IPv6 pass.
+Optional static ARP entries (`arp -S`, tracked in `arp_static.json` so removed
+bindings are cleaned up) stop forged ARP replies from re-pointing a bound IP.
+
+The engine discovers devices from ARP and from IPv4 frames inside the monitored
+networks (the firewall's own MACs are ignored), stores them in `devices`, and
+raises `device-new` and `mac-spoof` events when a bound IP is used by another
+MAC. The GUI lists discovered devices with a one-click *Bind*.
+
+## GeoIP
+
+`geo.py update` downloads the iptoasn.com country database (public domain, or any
+mirror serving `ip2country-v{4,6}.tsv.gz`, such as the cloud server), normalises
+it into `v4.tsv`/`v6.tsv`, and `geo.py build` turns each policy into a CIDR file
+(countries minus exceptions; for *allow only*: countries plus private ranges plus
+exceptions). Each policy is a persistent pf table `l7_geo_<id>` loaded from its
+file, with labelled quick block rules at priority 1:
+
+- *block*: `block in quick [on IF] from <table>` (inbound) and/or
+  `block in quick on IF to <table>` (clients going out)
+- *allow only*: the same with a negated table (`!<table>`)
+
+If the database is missing, *allow only* rules are not emitted (fail open).
+Rule label counters (`pfctl -s labels`) feed the "packets dropped" figures.
+The engine loads the same ranges into memory and tags every flow with the
+server's country (flows table, dashboard, flows page). Country data is an
+approximation (registry allocation), so CDNs and VPNs can map elsewhere.
+
 ## Security notes
 
 - The engine runs as root (BPF and pf need it) and drops nothing; its input is
