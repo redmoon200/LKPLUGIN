@@ -1,0 +1,65 @@
+<form>
+    <field>
+        <id>layer7security.dlp.enabled</id>
+        <label>Enable AI content inspection</label>
+        <type>checkbox</type>
+        <help>Decrypts traffic to the AI services selected for inspection through a transparent proxy and checks what is sent for sensitive data. Only those services are decrypted; all other traffic is untouched. Requires the privacy notice to be acknowledged (AI Audit > Privacy) and the inspection CA to be installed on the clients.</help>
+    </field>
+    <field>
+        <id>layer7security.dlp.inspectDefault</id>
+        <label>Inspect every AI service</label>
+        <type>checkbox</type>
+        <help>Also inspect the services that have no rule of their own (the default action applies). Otherwise only services with "Inspect content" ticked in their rule are inspected.</help>
+    </field>
+    <field>
+        <id>layer7security.dlp.cardAction</id>
+        <label>Payment card numbers</label>
+        <type>dropdown</type>
+        <help>Numbers of 13-19 digits that pass the Luhn check.</help>
+    </field>
+    <field>
+        <id>layer7security.dlp.idAction</id>
+        <label>Identity numbers</label>
+        <type>dropdown</type>
+        <help>US SSN, Indian Aadhaar (checksum verified) and PAN, IBAN (checksum verified), UK National Insurance number.</help>
+    </field>
+    <field>
+        <id>layer7security.dlp.keyAction</id>
+        <label>API keys and secrets</label>
+        <type>dropdown</type>
+        <help>Provider keys (OpenAI, Anthropic, AWS, Google, GitHub, Slack, Stripe), private keys, JWTs, bearer tokens and password / token assignments with high entropy.</help>
+    </field>
+    <field>
+        <id>layer7security.dlp.codeAction</id>
+        <label>Source code</label>
+        <type>dropdown</type>
+        <help>Heuristic: several lines that look like code. Only the line count and language are recorded, never the code.</help>
+    </field>
+    <field>
+        <id>layer7security.dlp.codeMinLines</id>
+        <label>Source code threshold (lines)</label>
+        <type>text</type>
+        <advanced>true</advanced>
+        <help>Minimum number of code-like lines before a request counts as source code.</help>
+    </field>
+    <field>
+        <id>layer7security.dlp.failMode</id>
+        <label>If the scanner is unavailable</label>
+        <type>dropdown</type>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>layer7security.dlp.maxBodyKb</id>
+        <label>Largest body scanned (KB)</label>
+        <type>text</type>
+        <advanced>true</advanced>
+        <help>Only the first part of larger bodies is scanned. Binary uploads (images, archives, PDFs) are never scanned.</help>
+    </field>
+    <field>
+        <id>layer7security.dlp.blockMessage</id>
+        <label>Message shown when blocked</label>
+        <type>textbox</type>
+        <advanced>true</advanced>
+        <help>{what} is replaced by the kind of data found, for example "a payment card number". Plain text only.</help>
+    </field>
+</form>

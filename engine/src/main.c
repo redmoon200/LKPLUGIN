@@ -305,7 +305,7 @@ ai_flow_actions(flow_t *f, const policy_t *p)
 
 	addr_str(&f->cli, s, sizeof(s));
 	addr_str(&f->srv, d, sizeof(d));
-	if (ai_event_due(s, p->ai)) {
+	if (p->ai[0] && ai_event_due(s, p->ai)) {
 		snprintf(detail, sizeof(detail), "%s %s%s", p->action == ACT_BLOCK ? "blocked" :
 		    p->action == ACT_ALLOW ? "allowed" : "monitored", f->l4 == IPPROTO_UDP ? "udp/" : "tcp/",
 		    f->l4 == IPPROTO_UDP ? "quic" : "tls");
@@ -346,7 +346,7 @@ flow_decide(flow_t *f)
 	snprintf(f->policy, sizeof(f->policy), "%s", p->name);
 	f->action = (uint8_t)p->action;
 	f->dirty = 1;
-	if (p->ai[0]) {
+	if (p->ai[0] || p->inspect || p->quic) {
 		snprintf(f->ai, sizeof(f->ai), "%s", p->ai);
 		ai_flow_actions(f, p);
 	}
@@ -662,7 +662,7 @@ dns_learn(const uint8_t *msg, int len, const addr_t *client)
 			l7_log("DNS-LEARN %s asked %s (app=%s cat=%s) -> %d address(es) to %s", c, name,
 			    *appname ? appname : "-", *catname ? catname : "-", n, p->table);
 		}
-	} else if (p != NULL && p->ai[0]) {
+	} else if (p != NULL && (p->ai[0] || p->inspect || p->quic)) {
 		/* allowed / monitored AI service: steer it to the inspection proxy and off QUIC */
 		int nb = 0, nq = 0;
 

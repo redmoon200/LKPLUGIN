@@ -65,7 +65,7 @@ class PolicyCompiler
                 $devices[] = $dev;
             }
         }
-        return [
+        return self::withDerived([
             'enabled' => (string)$g->enabled === '1',
             'enforce' => (string)$g->enforce === '1',
             'devices' => $devices,
@@ -89,7 +89,30 @@ class PolicyCompiler
             'aiQuic' => (string)$g->aiQuic ?: 'off',
             'auditEnabled' => (string)$mdl->audit->enabled === '1',
             'privacyAck' => (string)$mdl->audit->privacyAckBy !== '' && (string)$mdl->audit->privacyAckAt !== '',
-        ];
+            'dlpEnabled' => (string)$mdl->dlp->enabled === '1',
+            'dlpInspectDefault' => (string)$mdl->dlp->inspectDefault === '1',
+            'avEnabled' => (string)$mdl->av->enabled === '1',
+            'avHttp' => (string)$mdl->av->scanHttp === '1',
+            'avHttpsDomains' => array_map('strtolower', self::csv($mdl->av->httpsDomains)),
+        ], $mdl);
+    }
+
+    /** values that depend on several settings */
+    private static function withDerived(array $g, $mdl)
+    {
+        /* content inspection and web antivirus on HTTPS need the privacy notice acknowledged */
+        $g['inspectionAllowed'] = $g['dlpEnabled'] && $g['privacyAck'];
+        $inspect = $g['inspectionAllowed'] && $g['dlpInspectDefault'];
+        foreach ($mdl->ai->service->iterateItems() as $row) {
+            if ((string)$row->enabled === '1' && (string)$row->inspect === '1' && (string)$row->action !== 'block') {
+                $inspect = $inspect || $g['inspectionAllowed'];
+            }
+        }
+        $g['avHttpsAllowed'] = $g['avEnabled'] && $g['privacyAck'] && !empty($g['avHttpsDomains']);
+        /* the engine fills the proxy redirect table for AI inspection and for AV-selected HTTPS domains */
+        $g['aiInspect'] = $g['aiEnabled'] && $inspect || $g['avHttpsAllowed'];
+        $g['proxyNeeded'] = ($g['aiEnabled'] && $inspect) || $g['avHttpsAllowed'] || ($g['avEnabled'] && $g['avHttp']);
+        return $g;
     }
 
     /** AI service catalog (id => [name, domains, ...]) */
@@ -139,14 +162,14 @@ class PolicyCompiler
      */
     public static function aiPolicies(array $general)
     {
-        if (!$general['aiEnabled']) {
+        if (!$general['aiEnabled'] && !$general['avHttpsAllowed']) {
             return [];
         }
-        $catalog = self::aiCatalog();
+        $catalog = $general['aiEnabled'] ? self::aiCatalog() : [];
         $mdl = new Layer7Security();
         $quic = $general['aiQuic'] === 'ai';
         $out = [];
-        foreach ($mdl->ai->service->iterateItems() as $uuid => $row) {
+        foreach ($general['aiEnabled'] ? $mdl->ai->service->iterateItems() : [] as $uuid => $row) {
             $id = (string)$row->service;
             if ((string)$row->enabled !== '1' || !isset($catalog[$id])) {
                 continue;
@@ -157,7 +180,7 @@ class PolicyCompiler
                 'apps' => [], 'cats' => [], 'hosts' => array_map('strtolower', $catalog[$id]['domains']),
                 'dayMask' => self::dayMask($row), 'start' => (string)$row->startTime, 'end' => (string)$row->endTime,
                 'dnsCategories' => [], 'dnsDomains' => [], 'ai' => $id,
-                'inspect' => (string)$row->inspect === '1', 'quic' => $quic,
+                'inspect' => (string)$row->inspect === '1' && $general['inspectionAllowed'], 'quic' => $quic,
             ];
         }
         foreach ($catalog as $id => $svc) {
@@ -166,8 +189,20 @@ class PolicyCompiler
                 'action' => $general['aiDefault'], 'ifids' => [], 'devices' => [], 'sources' => [],
                 'apps' => [], 'cats' => [], 'hosts' => array_map('strtolower', $svc['domains']),
                 'dayMask' => 0x7f, 'start' => '00:00', 'end' => '00:00',
-                'dnsCategories' => [], 'dnsDomains' => [], 'ai' => $id, 'inspect' => false, 'quic' => $quic,
+                'dnsCategories' => [], 'dnsDomains' => [], 'ai' => $id,
+                'inspect' => $general['dlpInspectDefault'] && $general['inspectionAllowed'], 'quic' => $quic,
             ];
+        }
+        /* HTTPS download domains the antivirus should see: steered to the proxy like inspected AI services */
+        if ($general['avHttpsAllowed']) {
+            foreach ($general['avHttpsDomains'] as $dom) {
+                $out[] = [
+                    'uuid' => 'av-' . $dom, 'name' => 'AV: ' . $dom, 'action' => 'monitor', 'ifids' => [],
+                    'devices' => [], 'sources' => [], 'apps' => [], 'cats' => [], 'hosts' => [$dom], 'dayMask' => 0x7f,
+                    'start' => '00:00', 'end' => '00:00', 'dnsCategories' => [], 'dnsDomains' => [], 'ai' => '',
+                    'inspect' => true, 'quic' => false,
+                ];
+            }
         }
         return $out;
     }
@@ -373,6 +408,34 @@ class PolicyCompiler
             ];
         }
         return $result;
+    }
+
+    /** settings document read by the ICAP server and the Squid config writer */
+    public static function inspection(array $general, array $policies)
+    {
+        $mdl = new Layer7Security();
+        $rules = [];
+        foreach ($policies as $p) {
+            if (!empty($p['inspect']) && $p['action'] !== 'block' && !empty($p['hosts'])) {
+                $rules[] = ['ai' => $p['ai'], 'name' => $p['name'], 'domains' => $p['hosts'], 'sources' => $p['sources']];
+            }
+        }
+        $d = $mdl->dlp;
+        $av = $mdl->av;
+        return [
+            'enabled' => $general['dlpEnabled'],
+            'categories' => ['card' => (string)$d->cardAction, 'id' => (string)$d->idAction,
+                             'api_key' => (string)$d->keyAction, 'code' => (string)$d->codeAction],
+            'codeMinLines' => (int)(string)$d->codeMinLines, 'failMode' => (string)$d->failMode,
+            'maxBodyKb' => (int)(string)$d->maxBodyKb, 'blockMessage' => (string)$d->blockMessage,
+            'rules' => $rules,
+            'av' => [
+                'enabled' => $general['avEnabled'], 'http' => $general['avHttp'],
+                'https_domains' => $general['avHttpsAllowed'] ? $general['avHttpsDomains'] : [],
+                'skip' => array_map('strtolower', self::csv($av->skipDomains)),
+                'maxSizeMb' => (int)(string)$av->maxSizeMb, 'failMode' => (string)$av->failMode,
+            ],
+        ];
     }
 
     /** is the country database loaded (non-empty) */

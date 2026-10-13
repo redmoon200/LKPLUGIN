@@ -1,0 +1,92 @@
+#!/bin/sh
+
+# Copyright (c) 2026, redmoon200
+# All rights reserved.
+# SPDX-License-Identifier: BSD-2-Clause
+
+# PROVIDE: layer7security_proxy
+# REQUIRE: LOGIN
+# KEYWORD: shutdown
+
+# Inspection proxy: the ICAP server (data-loss checks, antivirus) and Squid in
+# transparent SSL-bump mode, each supervised by daemon(8).
+
+. /etc/rc.subr
+
+name=layer7security_proxy
+rcvar=layer7security_proxy_enable
+desc="Layer 7 Security inspection proxy (Squid + ICAP)"
+
+load_rc_config ${name}
+
+: ${layer7security_proxy_enable:=NO}
+
+scripts=/usr/local/opnsense/scripts/OPNsense/Layer7Security
+conf=/usr/local/etc/layer7security/squid.conf
+icap_pid=/var/run/l7icap.pid
+squid_pid=/var/run/l7squid.pid
+squid_bin=/usr/local/sbin/squid
+
+start_cmd=l7p_start
+stop_cmd=l7p_stop
+status_cmd=l7p_status
+restart_cmd=l7p_restart
+
+l7p_running()
+{
+	[ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null
+}
+
+l7p_stop_one()
+{
+	if l7p_running "$1"; then
+		kill "$(cat "$1")" 2>/dev/null
+		n=0
+		while l7p_running "$1" && [ $n -lt 50 ]; do
+			sleep 0.1
+			n=$((n + 1))
+		done
+		l7p_running "$1" && kill -9 "$(cat "$1")" 2>/dev/null
+	fi
+	rm -f "$1"
+}
+
+l7p_start()
+{
+	if [ ! -f "${conf}" ]; then
+		echo "${conf} not found, apply the configuration first" >&2
+		return 1
+	fi
+	mkdir -p /var/run/layer7security /var/log/l7squid
+	chown squid:squid /var/log/l7squid 2>/dev/null
+	l7p_running ${icap_pid} || /usr/sbin/daemon -r -P ${icap_pid} -o /var/log/l7icap.log \
+	    /usr/local/bin/python3 ${scripts}/icap_server.py
+	l7p_running ${squid_pid} || /usr/sbin/daemon -r -P ${squid_pid} -o /var/log/l7squid/daemon.log \
+	    ${squid_bin} -N -f ${conf}
+	echo "Starting ${name}."
+}
+
+l7p_stop()
+{
+	l7p_stop_one ${squid_pid}
+	l7p_stop_one ${icap_pid}
+	echo "Stopped ${name}."
+}
+
+l7p_status()
+{
+	if l7p_running ${squid_pid} && l7p_running ${icap_pid}; then
+		echo "${name} is running (squid $(cat ${squid_pid}), icap $(cat ${icap_pid}))."
+		return 0
+	fi
+	echo "${name} is not running."
+	return 1
+}
+
+l7p_restart()
+{
+	l7p_stop
+	l7p_start
+}
+
+run_rc_command "$1"

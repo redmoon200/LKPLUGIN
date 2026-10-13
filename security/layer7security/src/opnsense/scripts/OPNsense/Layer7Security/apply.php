@@ -217,6 +217,11 @@ function main($argv)
     $bindings = PolicyCompiler::bindings();
     $backend = new Backend();
 
+    /* decrypting and scanning content also needs the notice (and the CA on the clients) */
+    if ($general['enabled'] && ($general['dlpEnabled'] || $general['avHttpsAllowed'] || ($general['avEnabled'] && !empty($general['avHttpsDomains']))) && !$general['privacyAck']) {
+        return 'TLS inspection (AI content inspection or antivirus on HTTPS) is enabled but the privacy notice has not been acknowledged (AI Audit > Privacy).';
+    }
+
     /* logging what people do with AI services needs the privacy notice to be acknowledged first */
     if ($general['enabled'] && $general['auditEnabled'] && !$general['privacyAck']) {
         return 'AI audit logging is enabled but the privacy notice has not been acknowledged (AI Audit > Privacy).';
@@ -304,6 +309,30 @@ function main($argv)
     /* DNS filter */
     if (build_dns($general, $policies)) {
         $backend->configdRun('unbound restart');
+    }
+
+    /* inspection proxy: ICAP server + Squid, restarted only when their settings changed */
+    $inspection = json_encode(PolicyCompiler::inspection($general, $policies), JSON_PRETTY_PRINT);
+    $changed = write_if_changed(CONF_DIR . '/inspection.json', $inspection);
+    $needHttps = !empty($general['aiInspect']);
+    $proxyOn = $general['enabled'] && $general['proxyNeeded'];
+    write_if_changed('/etc/rc.conf.d/layer7security_proxy', 'layer7security_proxy_enable="' . ($proxyOn ? 'YES' : 'NO') . '"' . PHP_EOL);
+    if ($proxyOn) {
+        if ($needHttps) {
+            $ca = json_decode(trim($backend->configdRun('layer7security inspection-ca-init')), true);
+            if (empty($ca['created']) && !empty($ca['error'])) {
+                return 'cannot create the inspection CA: ' . $ca['error'];
+            }
+        }
+        $before = is_file(CONF_DIR . '/squid.conf') ? md5_file(CONF_DIR . '/squid.conf') : '';
+        $backend->configdRun('layer7security inspection-write');
+        $changed = $changed || $before !== (is_file(CONF_DIR . '/squid.conf') ? md5_file(CONF_DIR . '/squid.conf') : '');
+        $running = strpos(trim($backend->configdRun('layer7security proxy-status')), 'is running') !== false;
+        if ($changed || !$running) {
+            $backend->configdRun('layer7security proxy-restart');
+        }
+    } else {
+        $backend->configdRun('layer7security proxy-stop');
     }
 
     /* engine */
