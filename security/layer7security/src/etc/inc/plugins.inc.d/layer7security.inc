@@ -52,6 +52,7 @@ function layer7security_firewall(Plugin $fw)
     layer7security_mac_anchor($fw, $general);
     layer7security_geo_rules($fw, $general);
     layer7security_ai_rules($fw, $general);
+    layer7security_proxy_rules($fw, $general);
     foreach (PolicyCompiler::policies() as $policy) {
         if ($policy['action'] !== 'block') {
             continue;
@@ -175,6 +176,50 @@ function layer7security_ai_rules(Plugin $fw, array $general)
         }
         foreach ($general['ifids'] as $ifid) {
             $fw->registerFilterRule(1, array_merge($base, ['interface' => $ifid]));
+        }
+    }
+}
+
+/**
+ * Transparent proxy: AI services selected for inspection (addresses learned by
+ * the engine into <l7_ai_bump>) and, for web antivirus, plain HTTP are
+ * redirected to the local Squid ports. Everything else is left alone.
+ */
+function layer7security_proxy_rules(Plugin $fw, array $general)
+{
+    $https = !empty($general['aiInspect']);
+    $http = $general['avEnabled'] && $general['avHttp'];
+    if (!$https && !$http) {
+        return;
+    }
+    if ($https) {
+        $fw->registerTable('l7_ai_bump', true);
+    }
+    foreach ($general['ifids'] as $ifid) {
+        $ports = [];
+        if ($https) {
+            $ports[] = ['443', '3129', '<l7_ai_bump>'];
+        }
+        if ($http) {
+            /* internal destinations are never sent through the antivirus proxy */
+            $fw->registerForwardRule(2, [
+                'interface' => $ifid, 'nordr' => true, 'ipprotocol' => 'inet', 'protocol' => 'tcp',
+                'to' => '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,169.254.0.0/16', 'to_port' => '80',
+                'natreflection' => 'disable', 'descr' => 'Layer7 antivirus: no proxy for internal destinations',
+            ]);
+            $ports[] = ['80', '3128', 'any'];
+        }
+        foreach ($ports as [$dport, $lport, $to]) {
+            $fw->registerForwardRule(2, [
+                'interface' => $ifid, 'nordr' => false, 'ipprotocol' => 'inet', 'protocol' => 'tcp',
+                'to' => $to, 'to_port' => $dport, 'target' => '127.0.0.1', 'localport' => $lport,
+                'natreflection' => 'disable', 'descr' => 'Layer7: redirect to the inspection proxy',
+            ]);
+            $fw->registerFilterRule(2, [
+                'type' => 'pass', 'interface' => $ifid, 'direction' => 'in', 'ipprotocol' => 'inet',
+                'protocol' => 'tcp', 'to' => '127.0.0.1', 'to_port' => $lport, 'quick' => true,
+                'descr' => 'Layer7: allow traffic redirected to the inspection proxy',
+            ]);
         }
     }
 }

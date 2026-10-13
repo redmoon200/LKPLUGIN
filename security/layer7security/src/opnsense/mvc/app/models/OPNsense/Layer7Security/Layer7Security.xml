@@ -1,6 +1,6 @@
 <model>
     <mount>//OPNsense/layer7security</mount>
-    <version>1.3.0</version>
+    <version>1.4.0</version>
     <description>Layer 7 Security: application visibility, policies and DNS filtering</description>
     <items>
         <general>
@@ -277,6 +277,116 @@
                 <description type="DescriptionField"/>
             </policy>
         </geo>
+        <dlp>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </enabled>
+            <inspectDefault type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </inspectDefault>
+            <cardAction type="OptionField">
+                <Default>block</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Off</off>
+                    <monitor>Detect and log only</monitor>
+                    <block>Block the request</block>
+                </OptionValues>
+            </cardAction>
+            <idAction type="OptionField">
+                <Default>block</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Off</off>
+                    <monitor>Detect and log only</monitor>
+                    <block>Block the request</block>
+                </OptionValues>
+            </idAction>
+            <keyAction type="OptionField">
+                <Default>block</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Off</off>
+                    <monitor>Detect and log only</monitor>
+                    <block>Block the request</block>
+                </OptionValues>
+            </keyAction>
+            <codeAction type="OptionField">
+                <Default>monitor</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Off</off>
+                    <monitor>Detect and log only</monitor>
+                    <block>Block the request</block>
+                </OptionValues>
+            </codeAction>
+            <codeMinLines type="IntegerField">
+                <Default>12</Default>
+                <Required>Y</Required>
+                <MinimumValue>5</MinimumValue>
+                <MaximumValue>500</MaximumValue>
+                <ValidationMessage>Enter a number of lines between 5 and 500.</ValidationMessage>
+            </codeMinLines>
+            <failMode type="OptionField">
+                <Default>closed</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <closed>Fail closed (requests to inspected services fail if the scanner is down)</closed>
+                    <open>Fail open (requests pass uninspected if the scanner is down)</open>
+                </OptionValues>
+            </failMode>
+            <maxBodyKb type="IntegerField">
+                <Default>4096</Default>
+                <Required>Y</Required>
+                <MinimumValue>16</MinimumValue>
+                <MaximumValue>16384</MaximumValue>
+                <ValidationMessage>Enter a size between 16 and 16384 KB.</ValidationMessage>
+            </maxBodyKb>
+            <blockMessage type="TextField">
+                <Required>N</Required>
+                <Mask>/^[^&lt;&gt;]{0,500}$/s</Mask>
+                <ValidationMessage>The message may not contain angle brackets and is limited to 500 characters. {what} is replaced by the kind of data found.</ValidationMessage>
+            </blockMessage>
+        </dlp>
+        <av>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </enabled>
+            <scanHttp type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </scanHttp>
+            <httpsDomains type="CSVListField">
+                <Required>N</Required>
+                <MaskPerItem>Y</MaskPerItem>
+                <Mask>/^[a-z0-9]([a-z0-9._-]{0,251}[a-z0-9])?$/i</Mask>
+                <ValidationMessage>Enter domain names such as downloads.example.com, separated by commas.</ValidationMessage>
+            </httpsDomains>
+            <skipDomains type="CSVListField">
+                <Required>N</Required>
+                <MaskPerItem>Y</MaskPerItem>
+                <Mask>/^[a-z0-9]([a-z0-9._-]{0,251}[a-z0-9])?$/i</Mask>
+                <ValidationMessage>Enter domain names such as example.com, separated by commas.</ValidationMessage>
+            </skipDomains>
+            <maxSizeMb type="IntegerField">
+                <Default>50</Default>
+                <Required>Y</Required>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>512</MaximumValue>
+                <ValidationMessage>Enter a size between 1 and 512 MB.</ValidationMessage>
+            </maxSizeMb>
+            <failMode type="OptionField">
+                <Default>open</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <open>Fail open (downloads pass unscanned if the scanner is down)</open>
+                    <closed>Fail closed (downloads fail if the scanner is down)</closed>
+                </OptionValues>
+            </failMode>
+        </av>
         <audit>
             <enabled type="BooleanField">
                 <Default>0</Default>
