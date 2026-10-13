@@ -32,19 +32,29 @@ their code, assets or branding. "OPNsense" is a trademark of Deciso B.V.
 - **GeoIP filtering**: block or allow-only countries, inbound or outbound, per
   interface, with exceptions; country tags on every flow and a top-countries
   chart. Uses the public-domain iptoasn.com database (or your own mirror).
+- **AI service control**: identifies 23 AI services (ChatGPT, Claude, Gemini,
+  Copilot, ...) by TLS/QUIC server name and DNS; allow, monitor or block per
+  service, user, source and schedule; optional QUIC block.
+- **AI content inspection**: selective TLS inspection (a name-constrained CA, only
+  the chosen services are decrypted) with an ICAP data-loss scanner for payment
+  cards, identity numbers, API keys and source code.
+- **AI audit log**: masked snippets only, SHA-256 hash chain, CSV/JSON export,
+  syslog (local and remote), privacy notice that must be acknowledged first.
+- **Download protection**: file-type control and malware-hash reputation (feed,
+  own list, EICAR) for HTTP and chosen HTTPS sites. Not a signature-based scanner.
 - Native OPNsense plugin: MVC GUI, REST API, configd actions, rc.d service.
 
 ## Status
 
-v0.2.0, tested on the lab described in [docs/PROGRESS.md](docs/PROGRESS.md)
+v0.3.0, tested on the lab described in [docs/PROGRESS.md](docs/PROGRESS.md)
 (OPNsense 26.1.11, end-to-end checks, fuzzed parsers, CI on GitHub). It is a
 young project: read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for what it
-does and does not do (no TLS decryption; blocking is per address and DNS name).
+does and does not do (TLS is decrypted only where you ask for it; blocking is per address and DNS name).
 
 ## Install
 
 ```sh
-pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.2.0/os-layer7security-0.2.0.pkg
+pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.3.0/os-layer7security-0.3.0.pkg
 ```
 
 Then open **Services > Layer 7 Security** and follow

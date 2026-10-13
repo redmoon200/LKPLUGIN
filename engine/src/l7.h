@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#define L7_VERSION "0.2.0"
+#define L7_VERSION "0.3.0"
 #define L7_MAX_IFACES 8
 #define L7_MAX_POLICIES 128
 #define L7_MAX_LIST 128

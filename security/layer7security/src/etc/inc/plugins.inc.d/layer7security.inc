@@ -233,5 +233,7 @@ function layer7security_cron()
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security geo-update-auto', '41', '4', '*', '*', '1']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security audit-ingest', '*']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security audit-prune', '23', '3']],
+        ['autocron' => ['/usr/local/sbin/configctl -d layer7security av-feed-auto', '11', '*/3']],
+        ['autocron' => ['/usr/local/sbin/configctl -d layer7security av-prune', '37', '3']],
     ];
 }

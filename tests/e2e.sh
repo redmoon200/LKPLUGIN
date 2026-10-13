@@ -43,7 +43,16 @@ clear_policies() {
 	done
 }
 add_policy() { api POST /api/layer7security/settings/add_policy "$1" >/dev/null; }
-apply() { api POST /api/layer7security/service/reconfigure | grep -q '"ok"' && sleep 3; }
+started_count() { opn "grep -c started /var/log/layer7security.log" | tr -d '\015'; }
+apply() { # wait for the restarted engine to report started: the first request after Apply must not beat it
+	_n0=$(started_count)
+	api POST /api/layer7security/service/reconfigure | grep -q '"ok"' || return 1
+	for _w in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+		[ "$(started_count)" != "$_n0" ] && break
+		sleep 1
+	done
+	sleep 3
+}
 ALLDAYS='"days":"sun,mon,tue,wed,thu,fri,sat","startTime":"00:00","endTime":"00:00"'
 
 # E2E_ONLY="ai geo" runs just those sections (setup always runs); no value runs everything
@@ -297,6 +306,161 @@ q0=$(quic_pk); cli "python3 /tmp/udp.py $HF"; sleep 1; q1=$(quic_pk); cli "pytho
 check "QUIC block (AI only): datagrams to an AI service are dropped" test "$((q1 - q0))" -ge 5
 check "QUIC block (AI only): other UDP/443 traffic is not" test "$((q2 - q1))" -eq 0
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"aiEnabled":"0","aiQuic":"off","aiDefault":"monitor"}}}' >/dev/null
+
+fi
+
+# helpers shared by the AI, audit, inspection and download sections
+clear_ai() { for u in $(api GET /api/layer7security/settings/search_ai | python -c "import json,sys; [print(r['uuid']) for r in json.load(sys.stdin)['rows']]" | tr -d '\015'); do api POST "/api/layer7security/settings/del_ai/$u" >/dev/null; done; }
+ai_up() { [ "$(fetch "$1")" != "000" ]; }
+install_ca() {
+	curl -sk -u "$(python -c "import json,sys;d=json.load(open(sys.argv[1]));print(d['key']+':'+d['secret'])" "$(cygpath -w "$LKS/opn_api.json")" | tr -d '\015')" "https://$OPN/api/layer7security/inspection/ca" > /tmp/l7_e2e_ca.crt
+	grep -q "BEGIN CERTIFICATE" /tmp/l7_e2e_ca.crt || return 1
+	cli "sudo tee /usr/local/share/ca-certificates/layer7-inspection.crt >/dev/null && sudo update-ca-certificates >/dev/null 2>&1" < /tmp/l7_e2e_ca.crt
+}
+
+if want audit; then
+echo "== AI audit log (privacy gate, masked records, hash chain, export)"
+clear_policies
+api POST /api/layer7security/audit/ack >/dev/null
+api POST /api/layer7security/audit/set '{"layer7security":{"audit":{"enabled":"1","retentionDays":"365","syslogLocal":"1","syslogTarget":"","noticeText":""}}}' >/dev/null
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"interfaces":"lan","aiEnabled":"1","aiDefault":"monitor","aiQuic":"off"}}}' >/dev/null
+apply
+ai_up https://claude.ai; ai_up https://chatgpt.com; sleep 8
+opn 'configctl layer7security audit-ingest' >/dev/null
+aud_has() { api POST /api/layer7security/audit/search '{"current":1,"rowCount":50,"searchPhrase":"","period":3600}' | python -c "import json,sys; sys.exit(0 if any(r['kind']=='ai-use' for r in json.load(sys.stdin)['rows']) else 1)"; }
+check "AI use is recorded in the audit log" aud_has
+aud_ok() { api GET /api/layer7security/audit/verify | python -c "import json,sys; sys.exit(0 if json.load(sys.stdin)['ok'] else 1)"; }
+check "the hash chain verifies" aud_ok
+opnsh <<'EOF' > /tmp/audit_tamper.out
+cd /usr/local/opnsense/scripts/OPNsense/Layer7Security
+cp /var/db/layer7security/audit.db /tmp/audit_copy.db
+python3 -c "
+import sqlite3
+c=sqlite3.connect('/tmp/audit_copy.db')
+c.execute(\"UPDATE audit SET detail='edited' WHERE seq=(SELECT MIN(seq)+2 FROM audit)\")
+c.commit()"
+L7_AUDIT_DB=/tmp/audit_copy.db python3 audit.py verify tamper-test
+rm -f /tmp/audit_copy.db
+EOF
+check "an edited record is detected" grep -q '"ok": false' /tmp/audit_tamper.out
+exp_ok() {
+	api GET '/api/layer7security/audit/export?format=jsonl&period=3600' | opn 'cat > /tmp/audit_export.jsonl' || return 1
+	opn 'sh -c "cd /usr/local/opnsense/scripts/OPNsense/Layer7Security && python3 audit.py verify-file /tmp/audit_export.jsonl"' | grep -q '"ok": true'
+}
+check "an export verifies offline" exp_ok
+api POST /api/layer7security/audit/set '{"layer7security":{"audit":{"enabled":"0"}}}' >/dev/null
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"aiEnabled":"0"}}}' >/dev/null
+
+fi
+
+if want inspect; then
+echo "== AI content inspection (selective TLS bump, DLP, masking)"
+clear_policies
+clear_ai
+api POST /api/layer7security/audit/ack >/dev/null
+api POST /api/layer7security/audit/set '{"layer7security":{"audit":{"enabled":"1","retentionDays":"365","syslogLocal":"1","syslogTarget":"","noticeText":""}}}' >/dev/null
+api POST /api/layer7security/settings/add_ai '{"aiservice":{"enabled":"1","service":"claude","action":"monitor","inspect":"1","sources":"","users":"","days":"sun,mon,tue,wed,thu,fri,sat","startTime":"00:00","endTime":"00:00"}}' >/dev/null
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"interfaces":"lan","aiEnabled":"1","aiDefault":"monitor","aiQuic":"off"},"dlp":{"enabled":"1","inspectDefault":"0","cardAction":"block","idAction":"block","keyAction":"block","codeAction":"monitor","codeMinLines":"12","failMode":"closed","maxBodyKb":"4096","blockMessage":""}}}' >/dev/null
+apply
+sleep 3
+check "the CA certificate can be downloaded and installed" install_ca
+ca_limited() { api GET /api/layer7security/inspection/ca_info | grep -q anthropic.com; }
+check "the CA is restricted to named domains" ca_limited
+proxy_up() { api GET /api/layer7security/inspection/status | grep -q '"running":true'; }
+check "the inspection proxy is running" proxy_up
+cli 'sudo resolvectl flush-caches; dig +short api.anthropic.com @10.77.0.1 >/dev/null'; sleep 2
+post() { cli "curl -sS -m 12 -o /dev/null -w '%{http_code}' -H 'content-type: application/json' -d '$1' https://api.anthropic.com/v1/messages 2>/dev/null"; }
+CARDMSG='{"messages":[{"role":"user","content":"my card is 4111 1111 1111 1111"}]}'
+KEYMSG='{"p":"key sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEfGhIjKlMnOpQrStUvWxYz01"}'
+CLEANMSG='{"messages":[{"role":"user","content":"hello there"}]}'
+check "a card number is blocked" test "$(post "$CARDMSG")" = 403
+check "an API key is blocked" test "$(post "$KEYMSG")" = 403
+r=$(post "$CLEANMSG")
+check "a clean request reaches the real service (got $r)" sh -c "[ '$r' != 403 ] && [ '$r' != 000 ]"
+issuer() { cli "echo | openssl s_client -connect $1:443 -servername $1 2>/dev/null | openssl x509 -noout -issuer"; }
+check "only the selected service is decrypted (Wikipedia keeps its certificate)" sh -c "! echo \"$(issuer www.wikipedia.org)\" | grep -q 'Layer 7'"
+check "the selected service presents the inspection certificate" sh -c "echo \"$(issuer api.anthropic.com)\" | grep -q 'Layer 7'"
+opn 'configctl layer7security audit-ingest' >/dev/null
+api POST /api/layer7security/audit/search '{"current":1,"rowCount":20,"searchPhrase":"","period":3600}' > /tmp/audit_rows.json
+check "the block is audited with a masked snippet" sh -c "grep -q dlp-block /tmp/audit_rows.json && grep -q '1111' /tmp/audit_rows.json"
+check "the audit log never holds the raw card number" sh -c "! grep -q '4111 1111 1111 1111' /tmp/audit_rows.json"
+api POST /api/layer7security/settings/set '{"layer7security":{"dlp":{"cardAction":"monitor"}}}' >/dev/null
+apply; sleep 2
+c=000; for _i in 1 2 3 4 5 6; do c=$(post "$CARDMSG"); [ "$c" != 000 ] && break; sleep 3; done
+check "monitor mode lets the card through (got $c)" sh -c "[ '$c' != 403 ] && [ '$c' != 000 ]"
+api POST /api/layer7security/settings/set '{"layer7security":{"dlp":{"enabled":"0"}}}' >/dev/null
+apply
+no_bump() { for _i in 1 2 3 4 5 6; do opn 'pfctl -sn' | grep -q l7_ai_bump || return 0; sleep 3; done; return 1; }
+check "disabled: no traffic is redirected to the proxy" no_bump
+clear_ai
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"aiEnabled":"0"}}}' >/dev/null
+
+fi
+
+if want av; then
+echo "== Download protection (file types, hash feed, EICAR, HTTPS)"
+clear_policies
+api POST /api/layer7security/audit/ack >/dev/null
+opnsh <<'EOF'
+mkdir -p /tmp/avsrv
+rm -f /var/db/layer7security/av_hashes.txt /var/db/layer7security/av_feed.json
+python3 - <<'PY'
+d = '/tmp/avsrv'
+open(d + '/eicar.com', 'wb').write(('X5O!P%@AP[4' + chr(92) + 'PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*').encode())
+open(d + '/program.jpg', 'wb').write(b'MZ' + b'\x90\x00' * 200)
+open(d + '/tool.sh', 'wb').write(b'#!/bin/sh\necho hello\n')
+open(d + '/notes.txt', 'wb').write(b'plain text file\n')
+PY
+pkill -f "http.server 80 --bind 198.51.100.10" 2>/dev/null
+ifconfig lo0 alias 198.51.100.10/32 2>/dev/null
+cd /tmp/avsrv && daemon -f -p /var/run/avtest.pid python3 -m http.server 80 --bind 198.51.100.10
+sleep 1
+EOF
+av_set() { api POST /api/layer7security/settings/set "{\"layer7security\":{\"av\":$1}}" >/dev/null; }
+av_get() { cli "curl -sS -m 10 -o /tmp/av.out -w '%{http_code}' http://198.51.100.10/$1 2>/dev/null"; }
+av_set '{"enabled":"1","scanHttp":"1","httpsDomains":"","hashAction":"block","executableAction":"monitor","scriptAction":"monitor","packageAction":"monitor","archiveAction":"off","customHashes":"","feedUrl":"","feedAuthKey":"","feedHours":"24","skipDomains":"","maxSizeMb":"50","failMode":"open"}'
+apply; sleep 2
+check "an ordinary file is delivered" test "$(av_get notes.txt)" = 200
+check "the EICAR test file is blocked" test "$(av_get eicar.com)" = 403
+page_reason() { cli 'grep -c EICAR /tmp/av.out' | grep -q 1; }
+check "the block page names the reason" page_reason
+check "file types in monitor mode are delivered" test "$(av_get program.jpg)" = 200
+av_set '{"executableAction":"block"}'; apply; sleep 2
+check "a program disguised as a picture is blocked by file type" test "$(av_get program.jpg)" = 403
+av_set '{"executableAction":"monitor"}'
+opnsh <<'EOF'
+printf '# lab feed\n%s\n' "$(sha256 -q /tmp/avsrv/tool.sh)" > /tmp/avsrv/feed.txt
+EOF
+av_set '{"feedUrl":"http://198.51.100.10/feed.txt"}'; apply; sleep 2
+feed_ok() { api POST /api/layer7security/antivirus/feed_update | grep -q '"updated":true'; }
+check "the hash feed downloads" feed_ok
+sleep 22
+check "a file whose hash is in the feed is blocked" test "$(av_get tool.sh)" = 403
+av_det() { api POST /api/layer7security/antivirus/search '{"current":1,"rowCount":50,"searchPhrase":"","period":3600}' | python -c "import json,sys; r=json.load(sys.stdin)['rows']; sys.exit(0 if any(x['action']=='blocked' and x['file']=='eicar.com' for x in r) and any(x['action']=='observed' for x in r) else 1)"; }
+check "detections are listed (blocked and logged)" av_det
+not_ours() { ! cli "echo | openssl s_client -connect github.com:443 -servername github.com 2>/dev/null | openssl x509 -noout -issuer" | grep -q 'Layer 7'; }
+check "unrelated HTTPS traffic keeps its certificate" not_ours
+av_set '{"httpsDomains":"secure.eicar.org"}'
+r=$(api POST /api/layer7security/service/reconfigure)
+if echo "$r" | grep -q "not allowed to sign"; then
+	ok "an HTTPS site outside the CA is refused until the CA is replaced"
+	api POST /api/layer7security/inspection/ca_new >/dev/null
+else
+	ok "the CA already covers the HTTPS site"
+fi
+apply
+install_ca
+cli 'sudo resolvectl flush-caches; dig +short secure.eicar.org @10.77.0.1 >/dev/null'; sleep 3
+sget() { cli "curl -sS -m 15 -o /dev/null -w '%{http_code}' https://secure.eicar.org/eicar.com.txt 2>/dev/null"; }
+https_blocked() { for _i in 1 2 3; do [ "$(sget)" = 403 ] && return 0; sleep 2; done; return 1; }
+check "EICAR over HTTPS is blocked on a selected site" https_blocked
+av_set '{"enabled":"0","httpsDomains":"","feedUrl":""}'
+apply
+opnsh <<'EOF'
+pkill -f "http.server 80 --bind 198.51.100.10"
+ifconfig lo0 -alias 198.51.100.10 2>/dev/null
+rm -rf /tmp/avsrv /var/run/avtest.pid
+EOF
 
 fi
 

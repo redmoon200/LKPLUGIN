@@ -63,6 +63,63 @@ attempts show up as `mac-spoof` events and as *SPOOF* in the device list.
 *Allow only* never blocks private networks, so the firewall and local DNS stay
 reachable. Country data is an approximation; use it as a coarse filter.
 
+## AI services
+
+**Services > Layer 7 Security > AI Services**
+
+1. *Settings*: tick *Enable AI service control*, choose the default for services
+   without a rule (*allow*, *monitor*, *block*) and what to do about QUIC
+   (*off*, *AI services only*, *all UDP/443*).
+2. *Rules*: add a rule per service (Claude, ChatGPT, Gemini, Copilot, Perplexity,
+   DeepSeek and more): action, optional sources/users, days and hours.
+   *Inspect content* sends that service through the inspection proxy.
+3. *Usage* shows which services are used, by whom and how much.
+
+Blocking works per destination address plus DNS, like the other policies. Block
+QUIC if you want to inspect content: QUIC bypasses the proxy.
+
+## AI content inspection and audit log
+
+Read this before enabling: the firewall decrypts traffic to the services you
+select. Tell the people concerned and keep to your local law.
+
+1. **AI Audit > Privacy**: read the notice and acknowledge it. Nothing below can
+   be applied before that. Then enable the audit log (*Settings* tab), optionally
+   with a remote syslog target (recommended: it is the independent copy).
+2. **AI Inspection > Certificate**: apply once with inspection enabled so the CA is
+   created, download it and install it on every managed device (instructions on
+   the page). Never install it on devices you do not manage.
+3. **AI Inspection > Settings**: enable it and choose for each category (cards,
+   identity numbers, API keys, source code) *off*, *monitor* or *block*. Tick
+   *Inspect content* on the AI rules to be inspected (or *Inspect every AI
+   service*). The *Test the detectors* tab shows what would be found in pasted text.
+4. **AI Audit** lists AI use and detections with masked snippets only (for
+   example `**** **** **** 1111`), verifies the hash chain, and exports CSV, JSON
+   or JSONL.
+
+Keep the audit retention and who may read the log in line with your policy: the
+audit pages have their own privilege (*Services: Layer 7 Security: AI Audit log*).
+
+## Download protection
+
+**Services > Layer 7 Security > Antivirus**
+
+This is download protection, not a virus scanner: it blocks files whose SHA-256 is
+in a malware hash feed or your own list (and the EICAR test file), and it can log or
+block risky file types (programs, scripts, installer packages, archives).
+
+1. Set the actions per file type and for known hashes.
+2. Optional: *Malware hash feed URL* (a text/CSV file with one SHA-256 per line,
+   e.g. an abuse.ch MalwareBazaar export, which needs a free key) and *Your own
+   blocked hashes*. *Status and feed* shows the number of hashes and the last update.
+3. Plain HTTP downloads are checked automatically. For HTTPS, list the download
+   sites under *Also scan HTTPS downloads from*; they are decrypted with the
+   inspection CA (same privacy notice and CA installation as above; if the CA does
+   not cover a new site, Apply tells you to replace it).
+4. Test: download the EICAR test file from a client behind the firewall.
+
+Trusted sites can be exempted under *Never scan these sites*.
+
 ## What each page shows
 
 - **Dashboard**: flows, clients, applications, volume, blocked flows; traffic

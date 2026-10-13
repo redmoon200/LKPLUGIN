@@ -30,6 +30,10 @@ PAGES = {
     '/ui/layer7security/dns': ['frm_dns', 'dns/status', 'feedAct'],
     '/ui/layer7security/macbinding': ['grid-bindings', 'DialogBinding', 'frm_mac', 'dashboard/devices'],
     '/ui/layer7security/geoip': ['grid-geo', 'DialogGeo', 'frm_geo', 'geo/update'],
+    '/ui/layer7security/ai': ['grid-ai', 'DialogAi', 'search_ai'],
+    '/ui/layer7security/audit': ['grid-audit', 'audit/search', 'audit/verify'],
+    '/ui/layer7security/inspection': ['frm_inspection', 'inspection/status', 'inspection/ca'],
+    '/ui/layer7security/antivirus': ['grid-av', 'frm_antivirus', 'antivirus/search'],
     '/ui/layer7security/settings': ['frm_general', 'layer7security.general.enabled'],
 }
 

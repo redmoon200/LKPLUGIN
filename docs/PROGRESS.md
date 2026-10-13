@@ -79,6 +79,58 @@ was trusted.
   again after wiping every plugin file (package-only). On that install the full
   suite passed 50/50 in two consecutive runs, plus the render, dialog and fuzz tests.
 
+## v0.3.0: AI services, AI audit, content inspection, download protection (2026-10-13)
+Requested: AI service visibility (identify ChatGPT/Claude/Gemini by SNI/DNS, allow/monitor/block, QUIC
+block), AI content inspection (selective TLS bump + ICAP DLP), AI audit log (masked snippets, hash chain,
+export, syslog, privacy notice) and "firewall Antivirus". The Antivirus scope was ambiguous; I took it to
+mean web-download protection. I started with ClamAV, you said not to use it, so I removed it from the lab
+VM again and built download protection without a signature engine: file-type control (magic bytes + file
+name) and SHA-256 reputation (feed, own list, EICAR). It is not a signature-based virus scanner and the
+docs say so.
+
+- **AI services**: nDPI 5.0 has no AI apps, so a 23-service catalog is matched against TLS/QUIC SNI and DNS
+  answers; rules allow/monitor/block per service, source, user and schedule; QUIC block (AI only or all).
+- **Inspection**: name-constrained CA (58 permitted domains), Squid 6.14 transparent SSL-bump for the
+  selected services only, ICAP scanner with Luhn cards, SSN/Aadhaar/PAN/IBAN/NINO, provider API keys,
+  JWT/private keys, source-code heuristic. Verified on the lab: a card number and an API key POSTed to
+  api.anthropic.com get a 403 with the DLP message, a clean request reaches the real API (its own 401),
+  Wikipedia and GitHub keep their real certificates, monitor mode lets content through and logs it.
+- **Audit**: SHA-256 hash chain, masked snippets (`**** **** **** 1111`), export CSV/JSON/JSONL verifiable
+  offline, local + remote syslog (a copy arrived on the cloud VM), privacy gate (apply refuses until the
+  notice is acknowledged), access to the log is itself logged. Tamper tests (edit, middle delete, tail cut)
+  are detected.
+- **Download protection**: EICAR over HTTP and over HTTPS (selected site, bumped) is replaced by a block
+  page; a program disguised as a picture is blocked by file type; a feed-listed hash is blocked; detections
+  are listed in the GUI. Apply refuses an HTTPS site the name-constrained CA may not sign for.
+- **Tests**: unit tests 76 (detectors 21, audit 17, ICAP 20, download protection 18); e2e 88 checks (new
+  sections `ai`, `audit`, `inspect`, `av`); `ui_check.py` 13 pages; `ui_crud3.py` 10 checks (AI rule dialog,
+  audit verify button, detector test box, antivirus setting + hash lookup); engine fuzz 300,000 packets ok.
+- **Package**: `os-layer7security-0.3.0.pkg` (depends on `squid`), installed after removing the hand-deployed
+  files and all plugin state from the VM (config migrated 1.1.0 -> 1.4.0). The first full e2e run on that
+  fresh install had two failures that passed when rerun (`allow policy wins for github.com`, `block rule:
+  other AI services unaffected`: cold start after the install, not reproduced); the following full runs
+  passed 88/88.
+
+Bugs found and fixed while testing this release:
+- Squid crashed on start (segfault in `-k parse`, then FATAL "uninitialised SSL certificate database"):
+  the certificate database must be created for and owned by the `squid` user; it now lives in
+  `/var/db/l7squid`.
+- `pid_filename` clashed with the daemon(8) pid file (flock error); Squid now runs without one.
+- Squid refuses to start with only intercept ports ("mimeLoadIcon"): it gets one loopback forward port
+  that `http_access` denies.
+- The NAT lookup failed (`PF open failed: Permission denied`): `/dev/pf` is `root:proxy`, Squid runs as
+  user `squid`, group `proxy`.
+- Squid was not restarted when only its generated config changed.
+- The CA did not cover antivirus HTTPS sites; sites are now part of the name constraints and Apply
+  checks coverage.
+- Antivirus HTTPS sites were put on the "do not scan" list built for AI services.
+- `.bin` files were classed as programs (too generic); the empty-search placeholder `-` was treated as text.
+
+Lab notes: the GUI login of the lab firewall is `root` / `opnsense` (the factory default; the tests use it).
+The test file server for download protection is a loopback alias (198.51.100.10) on the firewall, because
+the proxy rules deliberately never redirect private destinations and the Proxmox NIC dropped packets for
+an extra address on the cloud VM.
+
 ## Bugs found and fixed while testing
 - Host-matching policies matched the DNS flow itself and put the resolver in the
   block table (cut DNS). DNS flows are no longer policy targets.
@@ -107,8 +159,9 @@ was trusted.
 | `qm resize 9102 scsi0 16G`, `qm resize 9103 scsi0 20G` | resize timed out the first time, repeated |
 | `qm monitor 9101` screendump, QMP `sendkey` via `/var/tmp/lk-lab/type.py` | drive the VGA console during first configuration |
 | `qm snapshot 9101 phase6-before`, `qm snapshot 9102 phase6-before` | before phase 6 |
+| `qm snapshot 9101 phase7-before --description "before v0.3.0 package reinstall test"` | 2026-10-13 10:09 UTC, before removing the plugin and reinstalling from the 0.3.0 package; `qm listsnapshot 9101` to check |
 
-No new `qm` commands were needed for 0.2.0 (no VM was created, resized or snapshotted).
+No new `qm` commands were needed for 0.2.0 (no VM was created, resized or snapshotted). 0.3.0 needed the one snapshot above and no rollback.
 
 ## Rollbacks
 - **9101 rebuilt.** Cause: I imported the OPNsense `serial` image, which is install
@@ -127,8 +180,15 @@ No new `qm` commands were needed for 0.2.0 (no VM was created, resized or snapsh
   as sources or users.
 - Users are identified by static IP addresses only (no directory/captive-portal
   integration).
-- No TLS decryption; encrypted traffic is classified from handshake metadata
-  (ECH/VPN traffic may show as TLS/VPN). Blocking is per address and DNS name.
+- TLS is decrypted only for the AI services and download sites an administrator selects (needs the
+  inspection CA on the clients; pinned apps and ECH cannot be inspected; QUIC must be blocked). All other
+  traffic is classified from handshake metadata (ECH/VPN traffic may show as TLS/VPN). Blocking is per
+  address and DNS name.
+- Download protection is not a signature-based virus scanner: it only knows files from the hash feed and
+  your own list, and file types. Archives are not opened and large files are not hashed.
+- The hash chain of the audit log proves integrity only against partial tampering; keep the remote
+  syslog copy.
+- AI rule schedules affect the engine but not the Squid scope (time of day).
 - Capture is libpcap/BPF; netmap for very high line rates is a documented option.
 - MAC binding covers IPv4 only (ARP and IPv6 are not filtered by the ether rules).
 - GeoIP data is registry based; CDN and VPN addresses can map to another country.

@@ -313,16 +313,21 @@ function main($argv)
 
     /* inspection proxy: ICAP server + Squid, restarted only when their settings changed */
     $inspection = json_encode(PolicyCompiler::inspection($general, $policies), JSON_PRETTY_PRINT);
-    $changed = write_if_changed(CONF_DIR . '/inspection.json', $inspection);
+    $changed = write_if_changed(CONF_DIR . '/inspection.json', $inspection, 0600);
     $needHttps = !empty($general['aiInspect']);
     $proxyOn = $general['enabled'] && $general['proxyNeeded'];
     write_if_changed('/etc/rc.conf.d/layer7security_proxy', 'layer7security_proxy_enable="' . ($proxyOn ? 'YES' : 'NO') . '"' . PHP_EOL);
     if ($proxyOn) {
-        if ($needHttps) {
+        if ($needHttps || $general['avHttpsAllowed']) {
             $ca = json_decode(trim($backend->configdRun('layer7security inspection-ca-init')), true);
             if (empty($ca['created']) && !empty($ca['error'])) {
                 return 'cannot create the inspection CA: ' . $ca['error'];
             }
+        }
+        $chk = json_decode(trim($backend->configdRun('layer7security inspection-ca-check')), true);
+        if (!empty($chk['uncovered'])) {
+            return 'The inspection CA is not allowed to sign for ' . implode(', ', array_slice($chk['uncovered'], 0, 5)) .
+                '. Replace the CA (AI Inspection > Certificate) and install the new certificate on the clients, or remove these sites.';
         }
         $before = is_file(CONF_DIR . '/squid.conf') ? md5_file(CONF_DIR . '/squid.conf') : '';
         $backend->configdRun('layer7security inspection-write');

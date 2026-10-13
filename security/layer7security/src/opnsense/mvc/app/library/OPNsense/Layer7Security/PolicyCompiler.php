@@ -416,7 +416,7 @@ class PolicyCompiler
         $mdl = new Layer7Security();
         $rules = [];
         foreach ($policies as $p) {
-            if (!empty($p['inspect']) && $p['action'] !== 'block' && !empty($p['hosts'])) {
+            if (!empty($p['inspect']) && !empty($p['ai']) && $p['action'] !== 'block' && !empty($p['hosts'])) {
                 $rules[] = ['ai' => $p['ai'], 'name' => $p['name'], 'domains' => $p['hosts'], 'sources' => $p['sources']];
             }
         }
@@ -434,6 +434,12 @@ class PolicyCompiler
                 'https_domains' => $general['avHttpsAllowed'] ? $general['avHttpsDomains'] : [],
                 'skip' => array_map('strtolower', self::csv($av->skipDomains)),
                 'maxSizeMb' => (int)(string)$av->maxSizeMb, 'failMode' => (string)$av->failMode,
+                'hashAction' => (string)$av->hashAction,
+                'types' => ['executable' => (string)$av->executableAction, 'script' => (string)$av->scriptAction,
+                            'package' => (string)$av->packageAction, 'archive' => (string)$av->archiveAction],
+                'customHashes' => array_map('strtolower', self::csv($av->customHashes)),
+                'feed' => ['url' => (string)$av->feedUrl, 'authKey' => (string)$av->feedAuthKey,
+                           'hours' => (int)(string)$av->feedHours],
             ],
         ];
     }
