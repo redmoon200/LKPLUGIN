@@ -20,7 +20,13 @@ fetch() { cli "curl -sS -o /dev/null -m 8 -w '%{http_code}' $1 2>/dev/null"; }
 reaches() { [ "$(fetch "$1")" = "200" ]; }
 blocked() { # a few tries: an address is learned on first contact, then dropped
 	for _i in 1 2 3; do
-		[ "$(fetch "$1")" = "200" ] && return 1
+		_out=$(cli "curl -sS -o /dev/null -m 8 -w '%{http_code} %{remote_ip}' $1 2>/dev/null" | tr -d '')
+		case "$_out" in
+		200*)
+			echo "    leak on try $_i to ${_out#200 }: $1"
+			opn "sh -c 'pfctl -t l7_blk_1 -T show 2>/dev/null | head -12; tail -6 /var/log/layer7security.log'" | sed 's/^/      /'
+			return 1;;
+		esac
 		sleep 2
 	done
 	return 0
@@ -116,12 +122,15 @@ if [ "$(cli 'ip -br a show ens4.10 2>/dev/null | wc -l' | tr -d '')" = "1" ]; th
 	check "YouTube blocked for VLAN 10 clients" vlan_blocked
 	check "YouTube still open for the LAN" lan_open
 	check "VLAN 10 control site reachable" vlan_control
-	T0=$(opn 'date +%s' | tr -d '')
 	vlan_flows() { api POST /api/layer7security/flows/search '{"current":1,"rowCount":100,"searchPhrase":"10.88.0.2","period":300}' | python -c "
 import json,sys
 t0=int(sys.argv[1]); d=json.load(sys.stdin)
 rows=[r for r in d['rows'] if r['ts_start']>=t0]
-sys.exit(0 if rows and all(r['iface']=='vlan0.10' for r in rows) else 1)" "$T0"; }
+bad=[r for r in rows if r['iface']!='vlan0.10']
+if not rows or bad:
+    for r in (bad or rows)[:6]: print('    offending:', r['iface'], r['client'], '->', r['server'], r['app'], 'start+%d' % (r['ts_start']-t0), file=sys.stderr)
+    print('    rows after T0:', len(rows), file=sys.stderr)
+    sys.exit(1)" "$T0"; }
 	check "VLAN flows are recorded on vlan0.10 only (no double counting)" vlan_flows
 	api POST /api/layer7security/settings/set '{"layer7security":{"general":{"interfaces":"lan"}}}' >/dev/null
 else
