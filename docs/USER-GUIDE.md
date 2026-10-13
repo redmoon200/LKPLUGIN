@@ -143,4 +143,4 @@ Trusted sites can be exempted under *Never scan these sites*.
 | Dashboard empty | Engine running? (`configctl layer7security status`), correct interface selected, `/var/log/layer7security.log` |
 | Block has no effect | Policy *Enabled* and inside its time window; *Enforce blocking* on; `pfctl -sr \| grep l7_blk`; source network covers the client |
 | DNS filter has no effect | Client uses the firewall for DNS; Unbound running; `/usr/local/etc/unbound.opnsense.d/layer7security.conf` exists |
-| A site stays reachable | Cached name/connection: the first lookup after a change is the one that arms the block; existing connections are killed on first sight |
+| A site stays reachable | Cached name/connection: the first lookup after a change is the one that arms the block; existing connections are killed on first sight. The very first connection right after adding a rule may occasionally get through; try again before assuming the rule is wrong |
