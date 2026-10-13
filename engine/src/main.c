@@ -354,7 +354,7 @@ flow_classify(flow_t *f, const uint8_t *l3, uint16_t l3len, uint64_t ts_ms, int 
 
 static flow_t *
 flow_get(const addr_t *a, uint16_t pa, const addr_t *b, uint16_t pb, uint8_t l4, int *dir,
-    const char *iface, uint64_t ts_ms)
+    const char *iface, uint64_t ts_ms, uint8_t tcpflags)
 {
 	uint32_t h = tuple_hash(a, pa, b, pb, l4);
 	size_t idx = h & (tabsz - 1);
@@ -374,6 +374,9 @@ flow_get(const addr_t *a, uint16_t pa, const addr_t *b, uint16_t pb, uint8_t l4,
 	}
 	if (nflows >= (size_t)cfg.max_flows)
 		return NULL;
+	/* a bare reset never starts a flow: it only trails a connection we already dropped */
+	if (l4 == IPPROTO_TCP && (tcpflags & TCP_RST) && !(tcpflags & TCP_SYN))
+		return NULL;
 	if ((f = calloc(1, sizeof(*f))) == NULL)
 		return NULL;
 	f->nf = ndpi_flow_malloc(SIZEOF_FLOW_STRUCT);
@@ -382,10 +385,32 @@ flow_get(const addr_t *a, uint16_t pa, const addr_t *b, uint16_t pb, uint8_t l4,
 		return NULL;
 	}
 	memset(f->nf, 0, SIZEOF_FLOW_STRUCT);
-	f->cli = *a;
-	f->srv = *b;
-	f->cport = pa;
-	f->sport = pb;
+	/*
+	 * The sender of the first packet is the client, except when we picked the
+	 * flow up mid-stream or on a reply: a SYN-ACK, or a well-known source port
+	 * talking to an unprivileged one, means the sender is the server.
+	 */
+	{
+		int src_is_server = 0;
+
+		if (l4 == IPPROTO_TCP && (tcpflags & TCP_SYN) && (tcpflags & 0x10))
+			src_is_server = 1;
+		else if (!(l4 == IPPROTO_TCP && (tcpflags & TCP_SYN)) && pa != 0 && pa < 1024 && pb >= 1024)
+			src_is_server = 1;
+		if (src_is_server) {
+			f->cli = *b;
+			f->srv = *a;
+			f->cport = pb;
+			f->sport = pa;
+			*dir = 1;
+		} else {
+			f->cli = *a;
+			f->srv = *b;
+			f->cport = pa;
+			f->sport = pb;
+			*dir = 0;
+		}
+	}
 	f->l4 = l4;
 	f->hash = h;
 	f->t_first_ms = ts_ms;
@@ -397,7 +422,6 @@ flow_get(const addr_t *a, uint16_t pa, const addr_t *b, uint16_t pb, uint8_t l4,
 	tab[idx] = f;
 	nflows++;
 	flows_total++;
-	*dir = 0;
 	return f;
 }
 
@@ -662,7 +686,7 @@ handle_l3(const uint8_t *l3, int len, uint64_t ts_ms, const char *iface)
 	if (proto == IPPROTO_UDP && pa == 53 && len > hl + 8 + 12)
 		dns_learn(l4 + 8, len - hl - 8, &b);
 
-	f = flow_get(&a, pa, &b, pb, proto, &dir, iface, ts_ms);
+	f = flow_get(&a, pa, &b, pb, proto, &dir, iface, ts_ms, tcpflags);
 	if (f == NULL)
 		return;
 	f->t_last_ms = ts_ms;

@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# build the application/category catalog for the GUI selectors, then apply the
+# stored configuration (restarts the engine on upgrades)
+mkdir -p /usr/local/etc/layer7security /var/db/layer7security
+/usr/local/opnsense/scripts/OPNsense/Layer7Security/catalog.sh >/dev/null 2>&1 || :
+/usr/local/sbin/configctl layer7security apply >/dev/null 2>&1 || :
