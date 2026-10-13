@@ -116,6 +116,7 @@ const char *sess_user(const addr_t *a);
 
 /* policy.c */
 void policy_set(policy_t *p, int n);
+int host_match(const char *pat, const char *host);
 policy_t *policy_find(const addr_t *client, const char *master, const char *app,
     const char *cat, const char *host);
 int policy_count(void);

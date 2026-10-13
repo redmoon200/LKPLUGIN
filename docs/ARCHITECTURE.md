@@ -10,6 +10,8 @@
             +-----------------------------------------------------------------------+
                                    ^ feed-update (HTTP)
                             l7-cloud: build_feeds.py + feedserver.py
+   login portal (portal.py, :8444 + :8081) <-> auth.py <-> pf <l7_auth_ok>, sessions.tsv
+   Squid SSL-bump + ICAP (icap_server.py: DLP, avscan.py hashes + YARA)
 ```
 
 ## Components
@@ -170,25 +172,133 @@ can rewrite the whole file. The remote syslog target is the independent copy.
 Privacy gate: audit and content inspection cannot be applied until the privacy
 notice has been acknowledged (AI Audit > Privacy).
 
-## Download protection
+## Console layout
 
-This is not a signature-based virus scanner and ships no signature engine.
-`avscan.py` serves `/av` (RESPMOD) from the same ICAP server and decides on two
-things only:
+`Menu.xml` creates three top-level menus: **Layer 7** (overview, live sessions,
+users and access, MAC binding, GeoIP, settings), **Protection** (Web Control,
+Application Control, CFS, DPI-SSL, Antivirus) and **AI** (AI Service, AI
+Inspection, AI Audit). All pages share `www/css/layer7security/console.css`,
+`www/js/layer7security/console.js` (helpers: `L7.api`, tiles, pills, dialogs,
+`L7.applyButton`) and `views/.../partials/header.volt` (title, module state,
+engine state, Apply). The old addresses (`policies`, `dns`, `flows`, `users`)
+redirect to the new pages. Pages talk to small API controllers
+(`webcontrol`, `live`, `appcontrol`, `cfs`, `access`, `ai`, ...) and the generic
+settings API.
+
+## Web Control
+
+Rules live in the model (`webcontrol.rule`: kind domain or ip, value, allow or
+block, optional sources, optional end time). `PolicyCompiler` turns them into
+
+- engine policies (`Web Control: allow` first, then `Web Control: block` per
+  source scope, 100 patterns per policy) placed before everything else, so an
+  allow beats every other rule;
+- Unbound zones: a pattern `*.x`, `*x` or `x` becomes the zone `x` (apex and
+  sub-domains); patterns with a wildcard inside cannot be expressed in DNS and
+  are left to the engine; allow rules become `transparent` zones, which win over
+  a blocked parent zone;
+- pf tables `l7_ipb_<n>` (one per source scope, filled from a file; allow
+  addresses are negated `!` entries, which pf resolves by the most specific
+  match) with block rules in both directions.
+
+The engine matches host patterns with `fnmatch` (case-insensitive, `*` crosses
+dots; a leading `*.` also matches the bare domain) or, without wildcards, as a
+domain suffix. Temporary rules carry an end time; `webexpire.sh` runs every
+minute, costs nothing until the first expiry in `web_expiry`, then removes the
+rule and applies. The quick action API (`webcontrol/quick`) adds or flips a rule
+and runs Apply in the same call; new IP blocks also kill existing states with
+`pfctl -k`.
+
+## Live sessions
+
+`live.py` reads `pfctl -ss -v`, pairs the translated halves of NAT states,
+works out who started each connection and the direction (out, in, internal,
+firewall) from the configured networks and the interface addresses, and joins
+the engine's flow table (site name, application, country, decision) by client,
+server and port, falling back to the newest name seen for the server address.
+Rates are computed in the browser from the byte counters of two polls. The
+engine now writes flow updates every 5 seconds (was 15) for the history view.
+
+## Content filtering (CFS)
+
+Categories are text files (`lists/<cat>.txt`, plus small built-in seeds) turned
+into Unbound zones; group rules are policies marked `module=cfs` and use
+Unbound views per source network; a rule that is restricted to signed-in users
+without device addresses is skipped (DNS cannot tell the users apart). Safe
+search is a set of `redirect` zones with a CNAME to the search engine's safe
+host; YouTube restricted mode the same with `restrict.youtube.com`. The filter
+include sets `log-local-actions`, so refused lookups appear in the Unbound log,
+which `cfs.py log` reads for the activity lists. Known-bad address lists
+(`threat/<id>.txt`) are pf tables `l7_thr_<id>` with block rules to and from them.
+
+## DPI-SSL
+
+One Squid in transparent SSL-bump mode (see AI content inspection) now serves
+three purposes. The scope is *selected* (the engine steers the AI services chosen
+for inspection, the antivirus sites and the administrator's list to the proxy
+through `<l7_ai_bump>`) or *all* (pf redirects every TCP 443 to private-free
+destinations to Squid, which splices the exclusion list and bumps the rest). A
+**restricted** CA carries X.509 name constraints for the catalog, the antivirus
+sites and the DPI sites; **all** needs a **full** CA, and Apply refuses a
+certificate that does not fit. The default exclusions
+(`share/layer7security/dpi_exclusions.txt`) cover certificate-pinned services.
+Squid writes a small access log (`l7` format with the bump mode) that the
+Sessions tab reads.
+
+## Sign-in portal
+
+`portal.py` (daemon, root) serves the login page over HTTPS on the firewall
+address of each sign-in network (self-signed certificate created once) and a
+loopback HTTP listener on 8081. pf redirects plain HTTP of devices that are not
+in `<l7_auth_ok>` to 8081, which answers with a redirect to the login page, and
+blocks their HTTPS and QUIC to non-private addresses (the login page, the web
+interface and internal addresses stay reachable; IPv6 web traffic is blocked on
+these networks). Passwords go to `authcheck.php` on stdin and are verified by
+OPNsense's own authentication factory (local, LDAP, RADIUS), including optional
+group membership. Failed logins are throttled per address. A session is
+`auth.db` (address, user, MAC, times); `auth.py sync` writes `sessions.tsv`
+(read by the engine, which matches policies that name users), the pf table
+`<l7_auth_ok>` and one table `l7_usr_<policy>` per policy with users. The
+proxy redirect rules only take signed-in addresses, so unsigned devices cannot
+reach the proxy by a side door. The pf rules exist only while the portal runs
+(`auth_ready` flag), so a failed portal never locks the network.
+
+## Download protection (antivirus)
+
+`avscan.py` serves `/av` (RESPMOD) from the ICAP server and decides on
 
 - **file type**, from the first bytes and the file name (not the server's
-  claim): programs (PE, ELF, Mach-O), scripts, installer packages and archives;
-  per type off, monitor or block;
-- **SHA-256 reputation**: the downloaded file (transport compression removed) is
-  looked up in a hash feed (downloaded on a schedule from an administrator-set
-  URL; a failed or empty download keeps the previous list), the administrator's own
-  list and the EICAR test file.
+  claim): programs, scripts, installer packages and archives; per type off,
+  monitor or block;
+- **hash reputation**: MD5, SHA-1 and SHA-256 of the downloaded file (transport
+  compression removed) against the cloud lists (`av/cloud_<algo>.txt`, with
+  malware family names where the source gives them), an optional own feed,
+  the administrator's list and the EICAR test file;
+- **signatures**: the YARA rules from the cloud server. `signatures.py` downloads
+  the index, verifies each file's SHA-256, test-compiles every file on its own
+  with `yarac` (one broken file never disables the rest) and compiles the good
+  ones into `rules.yarc`; scanning runs the `yara` command line tool on a private
+  temporary file, without a shell.
 
 Plain HTTP is intercepted on `127.0.0.1:3128` (private destinations are never
-redirected); HTTPS is only looked at for the sites listed by the administrator,
-which are bumped like the AI services. Files larger than the configured limit are
-not hashed (the type is still logged). Detections (time, client, site, file name
-without query string, size, type, hash, action) are kept 90 days in `av.db`.
+redirected); HTTPS only for the sites listed or with DPI-SSL "all". Files larger
+than the configured limit are not hashed (the type is still logged). Detections
+are kept 90 days in `av.db`. It is not a full antivirus: it looks at one file at
+a time, does not open archives and is as good as its public rules.
+
+## Cloud feed server
+
+`cloud/server/build_feeds.py` builds, hourly: `<category>.txt` (StevenBlack,
+anudeepND, URLhaus, Phishing.Database, ThreatFox domains), `ip/<id>.txt` (Feodo,
+ThreatFox, Emerging Threats, CINS, blocklist.de, Spamhaus DROP, Tor exits; only
+public addresses are ever published), `hashes/<algo>.txt` (MalwareBazaar,
+ThreatFox, the newest VirusShare MD5 lists), `yara/` (index with checksums, the
+project's rules and the ReversingLabs rules that compile) and `manifest.json`
+with sources and licences. A source that fails never empties an existing list.
+`feedserver.py` serves only whitelisted names, with ETag and gzip. The plugin's
+`feed_update.py` downloads with conditional requests, validates every line, and
+refreshes on its own schedule (domains 6 h, bad addresses and hashes 3 h,
+signatures 12 h; Apply downloads what is enabled but missing).
 
 ## Security notes
 
@@ -204,6 +314,18 @@ without query string, size, type, hash, action) are kept 90 days in `av.db`.
 - The inspection CA key is `root:squid 0640`, the CA is name-constrained, the
   ICAP server listens on loopback only, and `inspection.json` is mode 0600.
 - Raw request content is never stored: only masked snippets reach the audit log.
+- The sign-in portal runs as root (it updates pf tables). It listens only on the
+  firewall address of each sign-in network, limits request sizes and header time,
+  escapes every dynamic text, checks the "go on" address (http or https only),
+  protects the form with a per-address token and throttles wrong passwords
+  (five failures lock an address for five minutes). Passwords travel to the PHP
+  checker on stdin, never on a command line, and are never logged.
+- Quick actions and uploads are validated before they reach configd: names are
+  normalised (a single label such as "com" or a lone "*" is refused), hashes and
+  paths match fixed patterns, uploaded files get a random name in a private
+  directory and are deleted after the scan.
+- A full DPI-SSL certificate can sign any site: treat the firewall like a CA and
+  install the certificate only on managed devices.
 
 ## Known limits
 
@@ -219,5 +341,13 @@ without query string, size, type, hash, action) are kept 90 days in `av.db`.
   identically with the 0.2.0 engine, and could not be reproduced when the rule already existed.
 - Blocking is per destination address; for shared CDN addresses the DNS name
   is the better handle (use host or DNS rules).
+- Category lists (DNS) cannot tell signed-in users apart; rules for signed-in
+  users work for applications, website names and AI services. Sign-in is per
+  IPv4 address; devices behind another NAT share one session.
+- The antivirus is a safety net (hashes, YARA rules, file types), not a full
+  engine: archives are not opened, detection depends on the public rules.
+- With DPI-SSL "all", a full CA is on the firewall: protect the firewall like
+  a CA, install the certificate only on managed devices, and keep banks and
+  health sites on the exclusion list.
 - One engine process captures all selected interfaces; for very high line
   rates switch the capture backend to netmap (planned behind `on_packet`).

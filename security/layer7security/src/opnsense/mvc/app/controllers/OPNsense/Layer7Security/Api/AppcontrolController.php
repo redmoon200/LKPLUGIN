@@ -22,7 +22,7 @@ class AppcontrolController extends ApiMutableModelControllerBase
     protected static $internalModelName = 'layer7security';
     protected static $internalModelClass = '\OPNsense\Layer7Security\Layer7Security';
 
-    private const PREFIX = 'AppControl: ';
+    private const PREFIX = 'AppControl - ';
     /** categories offered as one-click switches */
     private const QUICK = ['SocialNetwork', 'Streaming', 'Video', 'Music', 'Game', 'Chat', 'VoIP', 'VPN', 'RemoteAccess',
         'FileSharing', 'Download', 'Cloud', 'Shopping', 'Gambling', 'AdultContent', 'Dating', 'Mining', 'Crypto_Currency'];

@@ -197,8 +197,8 @@ def sessions(limit, phrase, directions):
     rows = []
     for st in states:
         s = to_session(st)
-        if s is None or s['proto'] in ('icmp', 'ipv6-icmp') and s['age'] > 60:
-            continue
+        if s is None or (s['proto'] in ('icmp', 'ipv6-icmp') and (s['age'] > 60 or not phrase or phrase == '-')):
+            continue          # neighbour discovery and pings are noise unless somebody searches for them
         s['direction'] = classify(s, nets, fw)
         s['id'] = '%s|%s|%d|%s|%d' % (s['proto'], s['client'], s['cport'], s['server'], s['sport'])
         rows.append(s)

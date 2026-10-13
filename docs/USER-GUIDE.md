@@ -1,136 +1,205 @@
 # User guide
 
+This guide is for the people who run the firewall day to day. Every page has the
+same layout: a **header** (what the page is, whether the module is on, an
+**Apply changes** button), **tiles** with the numbers that matter, and **tabs**
+(overview, rules or settings, activity).
+
+Changes are saved when you click Save or finish a dialog, and put to work when
+you click **Apply changes**. A yellow bar reminds you when something is waiting.
+The quick actions of Live Sessions apply themselves.
+
 ## Install
 
 On the firewall (OPNsense 26.1):
 
 ```sh
-pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.1.0/os-layer7security-0.1.0.pkg
+pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.4.0/os-layer7security-0.4.0.pkg
 ```
 
-The package depends on `ndpi` and `sqlite3` from the OPNsense repository. Open
-**Services > Layer 7 Security**.
+It installs `ndpi`, `sqlite3`, `squid` and `yara` from the OPNsense repository.
+Three menus appear: **Layer 7**, **Protection** and **AI**.
 
-## First steps
+## First steps (10 minutes)
 
-1. **Settings**: tick *Enabled*, choose the monitored (LAN or VLAN)
-   interfaces, *Apply*. The engine starts and **Dashboard** and **Flows** fill
+1. **Layer 7 > Settings**: tick *Enabled*, choose the LAN or VLAN interfaces to
+   watch, *Apply changes*. **Layer 7 > Live Sessions** and the **Overview** fill
    within seconds.
-2. **Policies**: add a policy. Match on *Applications* (nDPI names such as
-   YouTube), *Application categories* (SocialNetwork, Game, VPN, ...) and/or
-   *Host names*. Scope it by *Interfaces/VLANs*, *Source networks* and *Users*
-   and set *Active days* and a time window. Choose *Monitor*, *Allow* or
-   *Block*. Press *Apply*.
-3. **Users**: give people a name and one or more addresses; use them in
-   policies. (Use DHCP static mappings so addresses stay stable.)
-4. **DNS Filtering**: enable it, pick categories, add always-block / allow
-   domains. Optionally set a *Feed URL* (for example the cloud server
-   `http://192.168.1.73:8080/feeds`) and press *Update lists now*.
+2. **Protection > CFS > Settings**: enter the address of your cloud server (see
+   below), tick *Enable content filtering*, *Save*, then the **Categories** tab
+   to pick what to block. Devices must use the firewall as their DNS server.
+3. **Protection > Web Control**: add the websites you never want (`*tiktok.com`).
+4. **Protection > Application Control > Categories**: set VPN, P2P, games ...
+   to *Block* or *Watch*.
+5. Watch **Live Sessions** for a day and use its Block / Allow buttons to tune.
 
-Policies are evaluated in ascending *Sequence*; the first match wins, so put
-`Allow` exemptions first.
+## Live Sessions (Layer 7)
 
-## MAC binding
+Everything that is connected right now, refreshed every few seconds.
 
-**Services > Layer 7 Security > MAC Binding**
+- **Connections**: device, website or address, port, application, country,
+  download and upload speed, total, age and what was decided. Click a column to
+  sort, use the chips to show outgoing, incoming, internal or the firewall's own
+  connections, type to search. *Pause* freezes the list while you read it.
+- **By device** and **By website** group the same data.
+- **Blocked just now**: what was stopped in the last ten minutes, with an Allow
+  button for mistakes.
+- **History** is the searchable list of finished connections.
 
-1. Open *Discovered devices* (the engine must be running). Press *Bind* next to
-   a device to bind the IP and MAC it uses now, or add bindings by hand. Leave
-   the IP empty to allow-list a MAC only.
-2. On the *Mode* tab choose **Protect** (a bound IP can only be used by its MAC)
-   or **Strict** (additionally drops IPv4 from every device that is not bound),
-   pick the enforced interfaces (LAN or VLAN) and press *Apply*.
+**Block** and **Allow** open one dialog: *what* (this website only, the whole
+site `*.example.com`, or the IP address), *for whom* (everybody or only that
+device), *how long* (always, 1 hour, 8 hours, 1 day, 7 days, 30 days) and an
+optional note. Confirm and the rule is active in a few seconds; open
+connections to a blocked address are cut. Rules from here appear in
+**Protection > Web Control**, where you can edit, remove or make a temporary
+rule permanent.
 
-Add every device you rely on **before** switching to Strict mode; a device that
-is not bound (and not allow-listed by MAC) loses IPv4 connectivity on that
-interface. Management access over another interface is not affected. Spoof
-attempts show up as `mac-spoof` events and as *SPOOF* in the device list.
+The click on **i** shows every detail of a connection.
 
-## GeoIP filtering
+## Web Control (Protection)
 
-**Services > Layer 7 Security > GeoIP**
+Allow and block lists for websites and IP addresses.
 
-1. Tick *Enable GeoIP filtering*, press *Update database* once (refreshed weekly
-   afterwards).
-2. Add a policy: **Block** the selected countries or **Allow only** them,
-   *Inbound* (traffic coming from the country, use the WAN interface),
-   *Outbound* (your clients going to the country, use LAN/VLAN interfaces) or
-   both, plus optional exceptions (addresses that are never affected).
-3. Press *Apply*. The table below the policies shows entries and dropped
-   packets per policy; the dashboard and flows page show the country of every
-   flow.
+- Websites: `example.com` blocks the site and everything below it.
+  `*.example.com` does the same. `*example.com` blocks every name that ends in
+  it (also `cdnexample.com`). `ads*.example.net` and `?` work too. You can paste
+  a whole address (`https://www.example.com/page`); only the name is kept.
+- IP addresses: `203.0.113.7` or a network `203.0.113.0/24`.
+- **Allow** rules are exceptions: `old.reddit.com` stays reachable although
+  `*.reddit.com` is blocked, and they also beat category and application rules.
+  Allow rules for IP addresses apply to everybody.
+- **Applies to**: leave empty for everybody or enter device addresses or networks.
+- **Test a website** shows which rules match a name.
+- **Activity** lists what was stopped; **Settings** switches Web Control off
+  without losing the rules.
 
-*Allow only* never blocks private networks, so the firewall and local DNS stay
-reachable. Country data is an approximation; use it as a coarse filter.
+How it blocks: the DNS filter answers "does not exist" for the site, and the
+engine stops connections whose TLS or DNS name matches (so names that DNS cannot
+express, like `ads*.example.net`, still work). Devices that use their own
+encrypted DNS are still caught by the engine when the site name is visible.
 
-## AI services
+## Application Control (Protection)
 
-**Services > Layer 7 Security > AI Services**
+- **Categories**: one line per kind of application with Allow, Watch or Block.
+- **Applications**: search the 467 applications the engine knows and set them
+  one by one.
+- **Advanced rules**: full rules with applications, categories or website names,
+  for networks, devices, named users and hours. The first rule that matches wins.
+- **Activity**: connections stopped by these rules.
 
-1. *Settings*: tick *Enable AI service control*, choose the default for services
-   without a rule (*allow*, *monitor*, *block*) and what to do about QUIC
-   (*off*, *AI services only*, *all UDP/443*).
-2. *Rules*: add a rule per service (Claude, ChatGPT, Gemini, Copilot, Perplexity,
-   DeepSeek and more): action, optional sources/users, days and hours.
-   *Inspect content* sends that service through the inspection proxy.
-3. *Usage* shows which services are used, by whom and how much.
+## CFS: content filtering (Protection)
 
-Blocking works per destination address plus DNS, like the other policies. Block
-QUIC if you want to inspect content: QUIC bypasses the proxy.
+- **Categories**: tick what to block for everybody (advertising, trackers,
+  malware, phishing, botnets, adult, gambling, social, streaming, games). The
+  list shows how many websites each category holds.
+- **Group rules**: block or allow categories for one network, some devices or
+  certain hours. They need device addresses.
+- **Settings**: the *blocked answer*, always-block and never-block websites,
+  **safe search** (Google, Bing, DuckDuckGo) and **YouTube restricted mode**,
+  **known bad addresses** (botnet servers, compromised hosts, attackers,
+  hijacked networks, Tor) and the **cloud server address**.
+- **Cloud lists**: what is installed and how old it is, *Update everything now*.
+- **Test a website** tells the category of a site; **Activity** lists refused
+  lookups with an Allow button.
 
-## AI content inspection and audit log
+## DPI-SSL (Protection)
 
-Read this before enabling: the firewall decrypts traffic to the services you
-select. Tell the people concerned and keep to your local law.
+Lets the firewall look inside HTTPS. Read this first: it decrypts traffic, so
+tell the people concerned and keep to your local law.
 
-1. **AI Audit > Privacy**: read the notice and acknowledge it. Nothing below can
-   be applied before that. Then enable the audit log (*Settings* tab), optionally
-   with a remote syslog target (recommended: it is the independent copy).
-2. **AI Inspection > Certificate**: apply once with inspection enabled so the CA is
-   created, download it and install it on every managed device (instructions on
-   the page). Never install it on devices you do not manage.
-3. **AI Inspection > Settings**: enable it and choose for each category (cards,
-   identity numbers, API keys, source code) *off*, *monitor* or *block*. Tick
-   *Inspect content* on the AI rules to be inspected (or *Inspect every AI
-   service*). The *Test the detectors* tab shows what would be found in pasted text.
-4. **AI Audit** lists AI use and detections with masked snippets only (for
-   example `**** **** **** 1111`), verifies the hash chain, and exports CSV, JSON
-   or JSONL.
+1. Acknowledge the privacy notice (**AI > AI Audit > Privacy**).
+2. **Settings**: tick *Enable DPI-SSL*, choose *What to decrypt*:
+   - *Only the sites listed* (default, safest): the sites you list, plus the AI
+     services you chose for inspection and the download sites of Antivirus. The
+     certificate is *restricted*: it can only be used for those sites.
+   - *All HTTPS except the exclusions*: needs a *full* certificate (set
+     *Certificate type* to Full, Save, create a new certificate). Banks, health
+     sites and pinned apps belong on the exclusion list; a ready-made list of
+     pinned services is skipped by default.
+3. **Certificate**: *Download the certificate* and install it on every device you
+   manage (instructions for Windows, macOS, Linux, Android and iOS are on the
+   page). Never install it on devices you do not manage. *Create a new
+   certificate* replaces it; every device then needs the new one.
+4. *Apply changes*. **Sessions** shows decrypted and passed-through connections.
 
-Keep the audit retention and who may read the log in line with your policy: the
-audit pages have their own privilege (*Services: Layer 7 Security: AI Audit log*).
+Apps that pin certificates, and sites using Encrypted Client Hello, cannot be
+decrypted; put them on the exclusion list. QUIC (HTTP/3) bypasses the proxy:
+block it under **AI > AI Service > Settings** if you rely on decryption.
 
-## Download protection
+## Antivirus (Protection)
 
-**Services > Layer 7 Security > Antivirus**
+Checks files that are downloaded through the firewall:
 
-This is download protection, not a virus scanner: it blocks files whose SHA-256 is
-in a malware hash feed or your own list (and the EICAR test file), and it can log or
-block risky file types (programs, scripts, installer packages, archives).
+1. file type from the content (program, script, installer, archive);
+2. MD5, SHA-1 and SHA-256 against malware lists (from the cloud server, your own
+   list and the EICAR test file);
+3. virus signatures (YARA rules from the cloud server).
 
-1. Set the actions per file type and for known hashes.
-2. Optional: *Malware hash feed URL* (a text/CSV file with one SHA-256 per line,
-   e.g. an abuse.ch MalwareBazaar export, which needs a free key) and *Your own
-   blocked hashes*. *Status and feed* shows the number of hashes and the last update.
-3. Plain HTTP downloads are checked automatically. For HTTPS, list the download
-   sites under *Also scan HTTPS downloads from*; they are decrypted with the
-   inspection CA (same privacy notice and CA installation as above; if the CA does
-   not cover a new site, Apply tells you to replace it).
-4. Test: download the EICAR test file from a client behind the firewall.
+*Settings*: choose Allow / Monitor / Block for each, start with Monitor for
+signatures. Plain HTTP is checked automatically; for HTTPS list the download
+sites or use DPI-SSL "all HTTPS". **Malware data** shows how many hashes and
+rules are installed and has *Update from the cloud server now*; **Test a file**
+scans a file you upload and looks up a hash.
 
-Trusted sites can be exempted under *Never scan these sites*.
+It is a safety net, not a replacement for antivirus on the computers: archives
+are not opened and the signature set is only as good as the public rules behind
+it.
 
-## What each page shows
+## Users and Access (Layer 7)
 
-- **Dashboard**: flows, clients, applications, volume, blocked flows; traffic
-  over time, top applications, categories, top clients, blocks per policy.
-- **Flows**: searchable table of stored flows, filter by period or blocked
-  only. Hostnames come from TLS SNI / HTTP / DNS.
+- **Named users and devices**: name people or devices by their addresses; use
+  the names in Application Control, CFS group rules and AI rules.
+- **Sign-in**: *Sign-in settings > Require sign-in for web access*, choose the
+  network (LAN or VLAN with a static address), the authentication server
+  ("Local Database" = the users under System > Access > Users, or LDAP or RADIUS
+  servers), optional allowed groups, session length and idle time, and the
+  devices that never need to sign in (your own computer first!). Devices that
+  are not signed in are redirected to a login page when they open a website;
+  HTTPS stays blocked until they sign in; DNS, mail and everything else keeps
+  working. After sign-in, rules for the **named user** (same name as the
+  account, addresses may be empty) apply to the device.
+- **Signed-in users** shows who is signed in and lets you sign them out; the
+  **Sign-in log** lists successful and failed attempts (five failures lock the
+  address for five minutes).
+
+Notes: sign-in works per IPv4 address (devices behind another NAT share one
+sign-in) and IPv6 web traffic is blocked on sign-in networks. Rules for signed-in
+users are enforced by application, website name and AI service; website
+categories (DNS) need device addresses.
+
+## MAC binding and GeoIP
+
+**Layer 7 > MAC Binding**: bind an IP address to the MAC address that may use it;
+*Strict* also blocks unknown devices. Add every device you rely on first.
+**Layer 7 > GeoIP**: block or allow whole countries, inbound or outbound, with
+exceptions; update the database once.
+
+## AI
+
+- **AI Service**: allow, watch or block each AI service (ChatGPT, Claude, Gemini,
+  Copilot, Perplexity, DeepSeek ...) for everybody in one table; *Advanced rules*
+  for groups and hours; *Usage* shows who uses what.
+- **AI Inspection**: looks for card numbers, ID numbers, API keys and source code
+  in what is sent to the services you tick *Check content* for. Needs DPI-SSL
+  and the privacy notice. The test box shows what would be found.
+- **AI Audit**: a tamper-evident log (hash chain) with masked excerpts only,
+  verification, export (CSV, JSON), syslog and the privacy notice. It has its own
+  privilege.
+
+## The cloud server
+
+`cloud/install.sh` installs the feed server on a Debian or Ubuntu machine. Every
+hour it rebuilds from public sources: website categories, IP threat lists,
+malware hashes (MalwareBazaar, ThreatFox, VirusShare) and YARA rules, and serves
+them on port 8080 (`/feeds/manifest.json` lists what is inside and its terms).
+Enter `http://<server>:8080/feeds` under Protection > CFS > Settings. The
+firewall refreshes the data every few hours by itself.
 
 ## Operating notes
 
-- Data lives in `/var/db/layer7security/l7.db` and is pruned after the
-  configured retention. The engine log is `/var/log/layer7security.log`.
+- Data lives in `/var/db/layer7security/` and is pruned after the configured
+  retention. The engine log is `/var/log/layer7security.log`, the sign-in portal
+  logs to `/var/log/l7portal.log`, the proxy to `/var/log/l7squid/`.
 - Service control: `configctl layer7security start|stop|restart|status`.
 - Block tables: `pfctl -t l7_blk_1 -T show`.
 - *Enforce blocking* off turns block policies into log-only (dry run).
@@ -140,7 +209,10 @@ Trusted sites can be exempted under *Never scan these sites*.
 
 | Symptom | Check |
 |---|---|
-| Dashboard empty | Engine running? (`configctl layer7security status`), correct interface selected, `/var/log/layer7security.log` |
-| Block has no effect | Policy *Enabled* and inside its time window; *Enforce blocking* on; `pfctl -sr \| grep l7_blk`; source network covers the client |
-| DNS filter has no effect | Client uses the firewall for DNS; Unbound running; `/usr/local/etc/unbound.opnsense.d/layer7security.conf` exists |
-| A site stays reachable | Cached name/connection: the first lookup after a change is the one that arms the block; existing connections are killed on first sight. The very first connection right after adding a rule may occasionally get through; try again before assuming the rule is wrong |
+| Overview empty | Engine running? (`configctl layer7security status`), the right interface chosen in Layer 7 > Settings, `/var/log/layer7security.log` |
+| A block has no effect | Rule enabled and inside its time window; *Enforce blocking* on; the device inside the rule's scope; `pfctl -sr \| grep l7_` |
+| DNS filter has no effect | The device uses the firewall for DNS; Unbound running; `/usr/local/etc/unbound.opnsense.d/layer7security.conf` exists |
+| Nobody can browse after turning on sign-in | The login page must be reachable: check Users and Access (status "Sign-in on"), add your own computer to *Never ask these devices* |
+| Certificate warnings | The DPI-SSL certificate is not installed on the device, or the site is pinned: add it to the exclusions |
+| Signatures not working | `pkg info yara`; *Antivirus > Malware data* shows the rule count; run *Update from the cloud server now* |
+| A site stays reachable | Cached name or connection: the first lookup after a change arms the block, open connections are killed on first sight. The very first connection right after a brand-new block rule may occasionally get through; try again before assuming the rule is wrong |

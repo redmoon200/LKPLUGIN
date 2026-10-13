@@ -543,8 +543,18 @@ function main($argv)
         $backend->configdRun('layer7security inspection-write');
         $changed = $changed || $before !== (is_file(CONF_DIR . '/squid.conf') ? md5_file(CONF_DIR . '/squid.conf') : '');
         $running = strpos(trim($backend->configdRun('layer7security proxy-status')), 'is running') !== false;
+        /* a replaced CA must be loaded by the proxy: remember which certificate it was started with */
+        $caFile = DB_DIR . '/ca/ca.crt';
+        $caSig = is_file($caFile) ? md5_file($caFile) : '';
+        $caSeen = trim((string)@file_get_contents(DB_DIR . '/ca/applied.md5'));
+        if ($caSig !== '' && $caSig !== $caSeen) {
+            $changed = true;
+        }
         if ($changed || !$running) {
             $backend->configdRun('layer7security proxy-restart');
+            if ($caSig !== '') {
+                @file_put_contents(DB_DIR . '/ca/applied.md5', $caSig . PHP_EOL);
+            }
         }
     } else {
         $backend->configdRun('layer7security proxy-stop');

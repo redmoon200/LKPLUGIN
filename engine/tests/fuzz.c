@@ -215,6 +215,42 @@ mutate(uint8_t *b, int *len)
 	}
 }
 
+/* host pattern semantics: plain = name and sub-domains, * and ? = glob, leading *. also matches the bare domain */
+static void
+hostmatch_selftest(void)
+{
+	static const struct {
+		const char *pat, *host;
+		int want;
+	} t[] = {
+		{ "instagram.com", "instagram.com", 1 },
+		{ "instagram.com", "www.instagram.com", 1 },
+		{ "instagram.com", "notinstagram.com", 0 },
+		{ "*.instagram.com", "instagram.com", 1 },
+		{ "*.instagram.com", "a.b.instagram.com", 1 },
+		{ "*.instagram.com", "notinstagram.com", 0 },
+		{ "*instagram.com", "cdninstagram.com", 1 },
+		{ "*instagram.com", "instagram.com", 1 },
+		{ "*instagram.com", "instagram.org", 0 },
+		{ "ads*.example.net", "ads1.example.net", 1 },
+		{ "ads*.example.net", "www.ads1.example.net", 0 },
+		{ "a?.example.org", "ab.example.org", 1 },
+		{ "a?.example.org", "abc.example.org", 0 },
+		{ "*", "anything.example", 1 },
+		{ "*.EXAMPLE.com", "www.example.COM", 1 },
+		{ "", "example.com", 0 },
+		{ "example.com", "", 0 },
+	};
+	size_t i;
+
+	for (i = 0; i < sizeof(t) / sizeof(t[0]); i++)
+		if (host_match(t[i].pat, t[i].host) != t[i].want) {
+			fprintf(stderr, "host_match(\"%s\", \"%s\") != %d\n", t[i].pat, t[i].host, t[i].want);
+			exit(1);
+		}
+	printf("host_match self-test ok\n");
+}
+
 int
 main(int argc, char **argv)
 {
@@ -227,6 +263,7 @@ main(int argc, char **argv)
 	uint64_t t = 1700000000000ull;
 
 	rng_state = argc > 2 ? (uint32_t)atol(argv[2]) : 12345u;
+	hostmatch_selftest();
 	if (ndpi_start() != 0) {
 		fprintf(stderr, "nDPI init failed\n");
 		return 1;

@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y php-cli libxml2-utils shellcheck
+        run: sudo apt-get update && sudo apt-get install -y php-cli libxml2-utils shellcheck yara
 
       - name: PHP syntax
         run: |
@@ -32,6 +32,12 @@ jobs:
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/icap_server.py \
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/inspection.py \
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/avscan.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/live.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/auth.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/portal.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/signatures.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/cloudlib.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/cfs.py \
             cloud/server/build_feeds.py cloud/server/feedserver.py
 
       - name: XML well-formed
@@ -43,18 +49,16 @@ jobs:
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/catalog.sh \
             security/layer7security/src/etc/rc.d/layer7security \
             security/layer7security/src/etc/rc.d/layer7security_proxy \
+            security/layer7security/src/etc/rc.d/layer7security_portal \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/webexpire.sh \
             cloud/install.sh
 
-      - name: Feed list builder self-test
+      - name: Own YARA signatures compile and find the EICAR test file
         run: |
-          python3 - <<'EOF'
-          import sys
-          sys.path.insert(0, 'cloud/server')
-          import build_feeds as b
-          got = b.parse("# c\n0.0.0.0 ads.example.com\n127.0.0.1 localhost\nplain.example.org\n1.2.3.4 other.example\n")
-          assert got == {'ads.example.com', 'plain.example.org'}, got
-          print('ok')
-          EOF
+          for f in cloud/data/yara/*.yar; do yarac "$f" /tmp/out.yarc; done
+          python3 -c "open('/tmp/eicar.com','w').write('X5O!P%@AP[4' + chr(92) + 'PZX54(P^)7CC)7}\$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!\$H+H*')"
+          yarac cloud/data/yara/basic.yar /tmp/basic.yarc
+          yara -C /tmp/basic.yarc /tmp/eicar.com | grep -q L7_EICAR_Test_File
 
       - name: GeoIP range arithmetic self-test
         run: |
@@ -77,8 +81,8 @@ jobs:
           print('ok')
           EOF
 
-      - name: Unit tests (detectors, audit log, ICAP scanner, download protection)
-        run: python3 -m unittest tests/test_dlp.py tests/test_audit.py tests/test_icap.py tests/test_av.py
+      - name: Unit tests (detectors, audit log, ICAP scanner, antivirus, live sessions, sign-in, cloud feeds)
+        run: python3 -m unittest tests/test_dlp.py tests/test_audit.py tests/test_icap.py tests/test_av.py tests/test_live.py tests/test_auth.py tests/test_cloud.py
 
       - name: No secrets in tree
         run: |

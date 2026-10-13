@@ -30,6 +30,7 @@ Non-goals: cloud-dependent licensing, closed-source components, TLS decryption.
   OPNsense is managed over its WAN address (lab rule allows 22/443 from
   192.168.1.0/24); its root shell is csh, so remote scripts go through `sh -s`.
 - Existing VMs 100-111 and 9001 belong to the user: never touch them.
+- The lab firewall GUI user is root; the tests log in with the factory default password.
 
 ## Layout
 ```
@@ -39,7 +40,7 @@ security/layer7security/      plugin, opnsense/plugins layout
   src/etc/rc.d/layer7security                    daemon(8) supervised engine
   src/opnsense/mvc/app/{controllers,models,views,library}/OPNsense/Layer7Security/
   src/opnsense/service/conf/actions.d/actions_layer7security.conf
-  src/opnsense/scripts/OPNsense/Layer7Security/  apply.php stats.py feed_update.py geo.py catalog.sh
+  src/opnsense/scripts/OPNsense/Layer7Security/  apply.php stats.py live.py feed_update.py geo.py portal.py auth.py ... (see the directory)
   src/share/layer7security/seeds/                small DNS category seed lists
 engine/                       l7engine (C): libpcap + nDPI + SQLite + pf ioctl, geo.c, dev.c
 cloud/                        feed builder/server for the DNS filter lists
@@ -93,3 +94,15 @@ docs/                         ARCHITECTURE, USER-GUIDE, ENGINE-COMPARISON, PROGR
   (`avscan.py` `/av`: file types and SHA-256 reputation, no signature engine).
   Proxy service: `rc.d/layer7security_proxy`. Tests: `tests/test_{dlp,audit,icap,av}.py`,
   e2e sections `ai audit inspect av`, `tests/ui_crud3.py`.
+- v0.4.0 redesigns the console (menus Layer 7 / Protection / AI, shared `console.css`,
+  `console.js` and `partials/header.volt`) and adds: Live Sessions (`live.py`), Web Control
+  (wildcards, IP rules, quick actions, `webexpire.sh`), Application Control and AI Service
+  one-click pages, CFS (safe search, threat IP lists, `cfs.py`), DPI-SSL scope all with a
+  full CA, the sign-in portal (`portal.py`, `auth.py`, `authcheck.php`, `rc.d/layer7security_portal`),
+  MD5/SHA-1/SHA-256 lists and YARA signatures (`signatures.py`, `cloudlib.py`, `feed_update.py`)
+  and the extended cloud server (`cloud/`). Engine 0.4.0: glob host patterns, signed-in user
+  policies (`sessions.tsv`), 256 policies, flow updates every 5 s. Tests:
+  `tests/test_live.py`, e2e sections `web appctl cfs dpi auth sig` (in `tests/e2e_v04_sections.sh`),
+  `tests/ui_check.py`, `ui_crud*.py`, `ui_console.py`. Quick GUI/PHP/Python deploy without the
+  engine build: `lab/sync-plugin.sh`. The OPNsense menu and ACL caches live in
+  `/var/lib/php/tmp/` (not `/tmp`).

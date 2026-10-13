@@ -87,12 +87,20 @@ class AntivirusController extends ApiControllerBase
         if (!$this->request->isPost()) {
             return ['error' => 'POST required'];
         }
-        $files = $this->request->getUploadedFiles();
-        if (empty($files) || $files[0]->getError() !== 0) {
+        try {
+            return $this->scanUpload();
+        } catch (\Throwable $e) {
+            return ['error' => 'The scan could not run: ' . $e->getMessage()];
+        }
+    }
+
+    private function scanUpload()
+    {
+        $up = $_FILES['file'] ?? null;
+        if (!is_array($up) || ($up['error'] ?? 1) !== UPLOAD_ERR_OK || !is_uploaded_file((string)$up['tmp_name'])) {
             return ['error' => 'No file was received.'];
         }
-        $f = $files[0];
-        if ($f->getSize() > 25 * 1024 * 1024) {
+        if ((int)$up['size'] > 25 * 1024 * 1024) {
             return ['error' => 'The file is larger than 25 MB.'];
         }
         $dir = '/var/db/layer7security/av/tmp';
@@ -100,13 +108,11 @@ class AntivirusController extends ApiControllerBase
             mkdir($dir, 0700, true);
         }
         $path = $dir . '/up.' . bin2hex(random_bytes(8));
-        $old = umask(0077);
-        $ok = $f->moveTo($path);
-        umask($old);
-        if (!$ok) {
+        if (!move_uploaded_file((string)$up['tmp_name'], $path)) {
             return ['error' => 'The file could not be read.'];
         }
-        $name = preg_replace('/[^A-Za-z0-9._-]/', '_', substr($f->getName(), 0, 80));
+        chmod($path, 0600);
+        $name = preg_replace('/[^A-Za-z0-9._-]/', '_', substr((string)$up['name'], 0, 80));
         $out = $this->json('layer7security av-scan-file', [$path, $name === '' ? 'file' : $name]);
         @unlink($path);
         return $out ?: ['error' => 'The scan failed.'];

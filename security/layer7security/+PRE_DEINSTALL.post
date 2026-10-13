@@ -1,4 +1,8 @@
 #!/bin/sh
 
-# stop the engine first; it flushes its pf tables on exit
+# stop the services first; the engine flushes its pf tables on exit
+/usr/local/etc/rc.d/layer7security_portal onestop >/dev/null 2>&1 || :
+/usr/local/etc/rc.d/layer7security_proxy onestop >/dev/null 2>&1 || :
 /usr/local/etc/rc.d/layer7security onestop >/dev/null 2>&1 || :
+# no sign-in rules without the portal
+rm -f /var/db/layer7security/auth_ready

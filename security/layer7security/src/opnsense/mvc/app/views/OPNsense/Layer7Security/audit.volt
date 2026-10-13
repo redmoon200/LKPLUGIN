@@ -7,6 +7,8 @@
         'apply': true
     ]) }}
 
+    <div class="l7-tiles" id="au-tiles"></div>
+
 <ul class="nav nav-tabs">
     <li class="active"><a data-toggle="tab" href="#log">{{ lang._('Log') }}</a></li>
     <li><a data-toggle="tab" href="#integrity">{{ lang._('Integrity and export') }}</a></li>
@@ -104,7 +106,22 @@
 <script>
     $(document).ready(function () {
         L7.engineStatus('#l7-engine-pill');
-        $('#l7-module-pill').remove();
+        function auditTiles() {
+            L7.get('/api/layer7security/audit/status').done(function (d) {
+                if (!d) { return; }
+                var ack = d.privacyAckBy ? true : false;
+                $('#l7-module-pill').replaceWith($(d.enabled ? L7.pill('{{ lang._("Audit on") }}', 'ok') : L7.pill('{{ lang._("Audit off") }}', 'plain')).attr('id', 'l7-module-pill'));
+                $('#au-tiles').html(
+                    L7.tile(d.enabled ? '{{ lang._("On") }}' : '{{ lang._("Off") }}', '{{ lang._("Audit log") }}', '', d.enabled ? 'ok' : '') +
+                    L7.tile(L7.num(d.records || 0), '{{ lang._("Records") }}', d.last ? '{{ lang._("last") }} ' + L7.ago(d.last) : '') +
+                    L7.tile(ack ? '{{ lang._("Yes") }}' : '{{ lang._("No") }}', '{{ lang._("Privacy notice acknowledged") }}', d.privacyAckBy || '', ack ? 'ok' : 'bad') +
+                    L7.tile(d.syslogTarget ? '{{ lang._("Remote") }}' : '{{ lang._("Local only") }}', '{{ lang._("Syslog") }}', d.syslogTarget || '', d.syslogTarget ? 'ok' : 'warn') +
+                    L7.tile(d.retention + ' {{ lang._("days") }}', '{{ lang._("Kept for") }}') +
+                    L7.tile(L7.bytes(d.size || 0), '{{ lang._("Size") }}')
+                );
+            });
+        }
+        auditTiles();
         function esc(value) {
             return $('<div>').text(value === null || value === undefined ? '' : String(value)).html();
         }

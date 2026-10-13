@@ -1,71 +1,94 @@
 # os-layer7security
 
-An open-source **Layer 7 (application-aware) firewall plugin for OPNsense 26.1**.
-It identifies the applications and categories behind your traffic with
-[nDPI](https://www.ntop.org/products/deep-packet-inspection/ndpi/), stores flows
-in a local SQLite database, shows them on a dashboard, and enforces policies by
-interface/VLAN, user and schedule through pf tables and Unbound DNS filtering.
+An open-source **Layer 7 (application-aware) security console for OPNsense 26.1**.
+It identifies the applications and websites behind your traffic with
+[nDPI](https://www.ntop.org/products/deep-packet-inspection/ndpi/), shows what is
+happening live, and lets IT support staff allow or block websites, IP addresses,
+applications, categories and AI services in a few clicks.
 
 Written from scratch. It is independent of, and not affiliated with, Zenarmor /
 Sunny Valley Networks or the OPNsense project / Deciso B.V.; it uses none of
 their code, assets or branding. "OPNsense" is a trademark of Deciso B.V.
 
+## The console
+
+Three menus appear in the OPNsense sidebar:
+
+| Menu | Pages |
+|------|-------|
+| **Layer 7** | Overview (protection status, traffic), **Live Sessions**, Users and Access (named users, sign-in), MAC Binding, GeoIP, Settings |
+| **Protection** | **Web Control**, **Application Control**, **CFS** (content filtering), **DPI-SSL**, Antivirus |
+| **AI** | **AI Service**, **AI Inspection**, **AI Audit** |
+
+Every module has the same layout: a header with its on/off state and an Apply
+button, status tiles, and tabs (overview, rules or settings, activity log).
+
 ## Features
 
-- **Visibility**: per-flow application, category, host name (TLS SNI, HTTP, DNS),
-  bytes and packets; dashboard with traffic over time, top applications,
-  categories, clients and policy blocks; searchable flow table.
-- **Policies** (first match wins; *monitor*, *allow* exemption, *block*):
-  match on application, nDPI category or host name; scope by interface/VLAN,
-  source network or named user; active days and time window.
-- **Blocking** without inline proxying: destination addresses go into per-policy
-  pf tables with matching quick-block rules; matching states are killed through
-  the pf ioctl interface. DNS answers for blocked applications pre-arm the block
-  before the client connects.
-- **DNS filtering**: category lists (ads, trackers, malware, phishing, adult,
-  gambling, social, streaming, games) and custom domains in Unbound, with
-  per-group views so different networks can have different lists. A small cloud
-  feed server in `cloud/` builds the lists from public sources.
-- **MAC binding**: bind IP addresses to MACs in the kernel (pf ether rules): a bound
-  address can only be used by its MAC; strict mode also drops unknown devices.
-  Device discovery with one-click bind, spoof alerts, optional static ARP.
-- **GeoIP filtering**: block or allow-only countries, inbound or outbound, per
-  interface, with exceptions; country tags on every flow and a top-countries
-  chart. Uses the public-domain iptoasn.com database (or your own mirror).
-- **AI service control**: identifies 23 AI services (ChatGPT, Claude, Gemini,
-  Copilot, ...) by TLS/QUIC server name and DNS; allow, monitor or block per
-  service, user, source and schedule; optional QUIC block.
-- **AI content inspection**: selective TLS inspection (a name-constrained CA, only
-  the chosen services are decrypted) with an ICAP data-loss scanner for payment
-  cards, identity numbers, API keys and source code.
-- **AI audit log**: masked snippets only, SHA-256 hash chain, CSV/JSON export,
-  syslog (local and remote), privacy notice that must be acknowledged first.
-- **Download protection**: file-type control and malware-hash reputation (feed,
-  own list, EICAR) for HTTP and chosen HTTPS sites. Not a signature-based scanner.
-- Native OPNsense plugin: MVC GUI, REST API, configd actions, rc.d service.
+- **Live Sessions**: every open connection with device, website or address, port,
+  application, country, download and upload rate, age and decision; by device and
+  by website; what was just blocked; search and history. **Block** or **Allow** a
+  website, a whole domain (`*.example.com`) or an IP address straight from the
+  list: one confirmation, for everybody or one device, for good or for a time,
+  active within seconds, open connections are cut.
+- **Web Control**: allow and block lists of websites and IP addresses with
+  wildcards (`*instagram.com`, `*.example.com`, `ads*.example.net`), per device,
+  temporary rules, a "what happens to this site" test box and an activity list.
+- **Application Control**: one-click Allow / Watch / Block per category
+  (social, streaming, games, VPN, P2P ...) and per application (467 known by
+  nDPI), plus full rules by interface/VLAN, device, user and schedule.
+- **CFS (content filtering)**: website categories (ads, trackers, malware,
+  phishing, botnets, adult, gambling, social, streaming, games) enforced in
+  Unbound, group rules, forced safe search and YouTube restricted mode, known-bad
+  IP lists (botnet C2, compromised hosts, attackers, hijacked networks, Tor),
+  category lookup.
+- **DPI-SSL**: TLS decryption through Squid SSL-bump, either for the sites you
+  list (name-constrained CA) or for all HTTPS except an exclusion list (full CA),
+  with ready-made exclusions for pinned apps and a session log.
+- **Antivirus for downloads**: file-type control from content, MD5 / SHA-1 /
+  SHA-256 reputation (cloud lists, own list, EICAR), **YARA virus signatures**,
+  detection log and a "scan a file" test tool. Not a replacement for endpoint
+  antivirus.
+- **Users and Access**: devices can be required to **sign in** on a login page
+  (OPNsense users, LDAP or RADIUS) before they can use the web; policies then
+  follow the signed-in user. Named users and devices for rules.
+- **AI Service / Inspection / Audit**: identifies 23 AI services (ChatGPT, Claude,
+  Gemini, Copilot ...), allow / watch / block each, optional data-loss checks
+  (cards, ID numbers, API keys, source code) and a tamper-evident audit log with
+  masked excerpts, export and syslog.
+- **MAC binding**, **GeoIP filtering**, per-interface/VLAN policies, schedules.
+- **Cloud feed server** (`cloud/`): one small server that collects website
+  categories, IP threat lists, malware hashes and YARA rules from public sources
+  and serves them to the firewalls.
+- Native OPNsense plugin: MVC GUI, REST API, configd actions, rc.d services.
 
 ## Status
 
-v0.3.0, tested on the lab described in [docs/PROGRESS.md](docs/PROGRESS.md)
-(OPNsense 26.1.11, end-to-end checks, fuzzed parsers, CI on GitHub). It is a
-young project: read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for what it
-does and does not do (TLS is decrypted only where you ask for it; blocking is per address and DNS name).
+v0.4.0, tested on the lab described in [docs/PROGRESS.md](docs/PROGRESS.md)
+(OPNsense 26.1.11, end-to-end checks, browser tests, fuzzed parsers, CI on
+GitHub). It is a young project: read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+for what it does and does not do (TLS is decrypted only where you ask for it;
+blocking is per address and DNS or TLS name).
 
 ## Install
 
 ```sh
-pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.3.0/os-layer7security-0.3.0.pkg
+pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.4.0/os-layer7security-0.4.0.pkg
 ```
 
-Then open **Services > Layer 7 Security** and follow
-[docs/USER-GUIDE.md](docs/USER-GUIDE.md).
+The package depends on `ndpi`, `sqlite3`, `squid` and `yara`. Then open the
+**Layer 7** menu and follow [docs/USER-GUIDE.md](docs/USER-GUIDE.md). To get the
+category lists, bad-address lists, malware hashes and signatures, install the
+cloud server (`cloud/install.sh`, Debian or Ubuntu) and enter its address under
+Protection > CFS > Settings.
 
 ## Build and test
 
 See [CLAUDE.md](CLAUDE.md) for the repository layout and every command. In
 short: the engine is C (`engine/`, libpcap + nDPI + SQLite), the plugin follows
-the `opnsense/plugins` layout (`security/layer7security/`), `lab/` holds the
-Proxmox lab and deploy scripts, and `tests/` the end-to-end and GUI tests.
+the `opnsense/plugins` layout (`security/layer7security/`), `cloud/` is the feed
+server, `lab/` holds the Proxmox lab and deploy scripts, and `tests/` the
+end-to-end, unit and browser tests.
 
 ## nDPI licensing
 
@@ -73,6 +96,15 @@ nDPI is LGPL with some dual-licensed components. Since nDPI 6 the library asks
 which license applies; this project defaults to the not-for-profit LGPL mode,
 which suits open-source use. If you deploy it commercially, obtain a license
 from ntop and rebuild with `-DL7_NDPI_LICENSE=<value>`.
+
+## Data sources of the cloud server
+
+abuse.ch (URLhaus, ThreatFox, MalwareBazaar, Feodo Tracker; CC0), StevenBlack
+hosts and anudeepND (MIT), Phishing.Database (MIT), Emerging Threats, CINS Army,
+blocklist.de, Spamhaus DROP (free for non-commercial use), the Tor Project exit
+list, VirusShare hash lists, ReversingLabs open source YARA rules (MIT) and the
+project's own rules (BSD-2-Clause). Each file in the cloud manifest lists its
+sources and terms; check them before commercial use.
 
 ## License
 
