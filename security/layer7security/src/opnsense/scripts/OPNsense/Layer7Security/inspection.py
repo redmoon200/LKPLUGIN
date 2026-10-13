@@ -7,16 +7,19 @@
 # TLS inspection plumbing: the inspection CA, the Squid configuration and the
 # status of the proxy / ICAP processes.
 #
-#   inspection.py ca-init [--force]   create the CA (once) or replace it
+#   inspection.py ca-init [--force]   create the CA (once) or replace it (restricted or full, see DPI-SSL settings)
+#   inspection.py log [ROWS]          decrypted and passed-through sessions of the proxy (JSON)
+#   inspection.py prune               keep the proxy access log small
 #   inspection.py ca-info             JSON about the CA
 #   inspection.py ca-pem              print the CA certificate (PEM)
 #   inspection.py write-config        build squid.conf from inspection.json
 #   inspection.py status              JSON: processes and counters
 #   inspection.py test PATH           scan a text file (deleted afterwards), JSON of masked detections
 #
-# The CA carries an X.509 name-constraints extension limited to the catalog's
-# AI service domains, so even a stolen CA key cannot impersonate other sites
-# to clients that enforce name constraints.
+# A restricted CA carries an X.509 name-constraints extension limited to the
+# catalog's AI service domains and the sites chosen by the administrator, so
+# even a stolen CA key cannot impersonate other sites to clients that enforce
+# name constraints. A full CA (DPI-SSL scope "all HTTPS") has no such limit.
 
 import json
 import os
@@ -45,6 +48,45 @@ CERTGEN = '/usr/local/libexec/squid/security_file_certgen'
 HTTP_PORT, HTTPS_PORT, ICAP_PORT = 3128, 3129, 1344
 DOMAIN = re.compile(r'^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$')
 STATS = '/var/run/layer7security/icap_stats.json'
+ACCESS_LOG = '/var/log/l7squid/access.log'
+DPI_EXCLUSIONS = os.environ.get('L7_DPI_EXCLUSIONS', '/usr/local/share/layer7security/dpi_exclusions.txt')
+
+
+def load_settings():
+    try:
+        with open(SETTINGS) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def dpi_settings():
+    d = load_settings().get('dpi') or {}
+    return {'enabled': bool(d.get('enabled')), 'scope': d.get('scope') if d.get('scope') in ('selected', 'all') else 'selected',
+            'caMode': d.get('caMode') if d.get('caMode') in ('restricted', 'full') else 'restricted',
+            'sites': [x.lower().lstrip('.') for x in d.get('sites', []) if isinstance(x, str)],
+            'exclusions': [x.lower().lstrip('.') for x in d.get('exclusions', []) if isinstance(x, str)],
+            'excludeDefaults': d.get('excludeDefaults', True)}
+
+
+def default_exclusions():
+    out = []
+    try:
+        with open(DPI_EXCLUSIONS) as f:
+            for line in f:
+                line = line.split('#', 1)[0].strip().lower()
+                if line and DOMAIN.match(line):
+                    out.append(line)
+    except OSError:
+        pass
+    return out
+
+
+def exclusion_list(dpi):
+    names = set(x for x in dpi['exclusions'] if DOMAIN.match(x))
+    if dpi['excludeDefaults']:
+        names |= set(default_exclusions())
+    return sorted(names)
 
 
 def av_domains():
@@ -63,15 +105,24 @@ def catalog_domains():
             doms = {d.lower() for s in json.load(f) for d in s.get('domains', []) if DOMAIN.match(d.lower())}
     except (OSError, ValueError):
         doms = set()
-    return sorted(doms | set(av_domains()))      # sites the CA may sign for: AI services and chosen download sites
+    dpi = dpi_settings()
+    return sorted(doms | set(av_domains()) | {x for x in dpi['sites'] if DOMAIN.match(x)})   # sites a restricted CA may sign for
 
 
 def ca_check():
     """configured inspection sites the existing CA is not allowed to sign for"""
     if not os.path.exists(CA_CRT):
         return {'uncovered': []}
-    allowed = ca_info().get('constraints', [])
-    wanted = set(av_domains())
+    info = ca_info()
+    allowed = info.get('constraints', [])
+    dpi = dpi_settings()
+    if dpi['enabled'] and dpi['scope'] == 'all' and allowed:
+        return {'uncovered': ['all HTTPS sites (the current certificate may only sign selected sites: replace it with a full CA on the DPI-SSL page)']}
+    if dpi['caMode'] == 'full' and allowed:
+        return {'uncovered': ['all sites (the current certificate is restricted: replace it on the DPI-SSL page)']}
+    if not allowed:
+        return {'uncovered': []}          # a full CA can sign everything
+    wanted = set(av_domains()) | {x for x in dpi['sites'] if DOMAIN.match(x)}
     try:
         with open(SETTINGS) as f:
             for r in json.load(f).get('rules', []):
@@ -110,14 +161,21 @@ def ca_init(force=False):
     if os.path.exists(CA_CRT) and os.path.exists(CA_KEY) and not force:
         return {'created': False}
     domains = catalog_domains()
-    if not domains:
+    full = dpi_settings()['caMode'] == 'full'
+    if not domains and not full:
         return {'created': False, 'error': 'AI service catalog is empty'}
     os.makedirs(CA_DIR, mode=0o750, exist_ok=True)
-    nc = '\n'.join('permitted;DNS.%d = %s' % (i, d) for i, d in enumerate(domains))
-    conf = ('[req]\ndistinguished_name = dn\nx509_extensions = ext\nprompt = no\n'
-            '[dn]\nCN = Layer 7 Security AI inspection CA (%s)\nO = os-layer7security\n'
-            '[ext]\nbasicConstraints = critical,CA:TRUE,pathlen:0\nkeyUsage = critical,keyCertSign,cRLSign\n'
-            'subjectKeyIdentifier = hash\nnameConstraints = critical,@nc\n[nc]\n%s\n') % (socket.gethostname()[:40], nc)
+    if full:
+        conf = ('[req]\ndistinguished_name = dn\nx509_extensions = ext\nprompt = no\n'
+                '[dn]\nCN = Layer 7 Security DPI-SSL CA (%s)\nO = os-layer7security\n'
+                '[ext]\nbasicConstraints = critical,CA:TRUE,pathlen:0\nkeyUsage = critical,keyCertSign,cRLSign\n'
+                'subjectKeyIdentifier = hash\n') % socket.gethostname()[:40]
+    else:
+        nc = '\n'.join('permitted;DNS.%d = %s' % (i, d) for i, d in enumerate(domains))
+        conf = ('[req]\ndistinguished_name = dn\nx509_extensions = ext\nprompt = no\n'
+                '[dn]\nCN = Layer 7 Security inspection CA (%s)\nO = os-layer7security\n'
+                '[ext]\nbasicConstraints = critical,CA:TRUE,pathlen:0\nkeyUsage = critical,keyCertSign,cRLSign\n'
+                'subjectKeyIdentifier = hash\nnameConstraints = critical,@nc\n[nc]\n%s\n') % (socket.gethostname()[:40], nc)
     with tempfile.NamedTemporaryFile('w', suffix='.cnf', delete=False) as f:
         f.write(conf)
         cnf = f.name
@@ -136,7 +194,7 @@ def ca_init(force=False):
     os.replace(crt, CA_CRT)
     if os.path.isdir(SSL_DB):          # certificates minted by the old CA are useless now
         shutil.rmtree(SSL_DB, ignore_errors=True)
-    return {'created': True, 'domains': len(domains)}
+    return {'created': True, 'domains': len(domains), 'mode': 'full' if full else 'restricted'}
 
 
 def ca_info():
@@ -150,6 +208,7 @@ def ca_info():
         out[key] = text.split('=', 1)[1].strip() if '=' in text else text
     res = run([OPENSSL, 'x509', '-in', CA_CRT, '-noout', '-ext', 'nameConstraints'])
     out['constraints'] = re.findall(r'DNS:([A-Za-z0-9.-]+)', res.stdout)
+    out['mode'] = 'restricted' if out['constraints'] else 'full'
     return out
 
 
@@ -169,17 +228,22 @@ def build_squid(cfg):
     """squid.conf text for the AI inspection rules and (optionally) web antivirus"""
     rules = [r for r in cfg.get('rules', []) if r.get('domains')]
     av = cfg.get('av', {}) if cfg.get('av', {}).get('enabled') else {}
+    dpi = dpi_settings() if dpi_active(cfg) else None
+    dpi_sites = [x for x in (dpi['sites'] if dpi else []) if DOMAIN.match(x)]
+    dpi_all = bool(dpi and dpi['scope'] == 'all')
+    need_tls = bool(rules or (av and av.get('https_domains')) or dpi_sites or dpi_all)
     lines = ['# generated by os-layer7security, do not edit',
              'pid_filename none',            # supervised by daemon(8), which holds the pid file
              'cache_effective_user squid', 'cache_effective_group proxy',   # /dev/pf is root:proxy (NAT lookup)
              'visible_hostname l7security', 'httpd_suppress_version_string on',
              'via off', 'forwarded_for delete', 'cache deny all', 'cache_mem 8 MB',
-             'access_log none', 'cache_store_log none', 'cache_log /var/log/l7squid/cache.log',
+             'logformat l7 %ts|%>a|%ssl::>sni|%ru|%Ss|%ssl::bump_mode|%>Hs|%<st',
+             'access_log stdio:' + ACCESS_LOG + ' l7', 'cache_store_log none', 'cache_log /var/log/l7squid/cache.log',
              'coredump_dir /var/db/l7squid', 'shutdown_lifetime 1 seconds',
              'client_persistent_connections on', 'server_persistent_connections on',
              # Squid insists on one ordinary port to build its internal URLs; it serves nobody (see http_access)
              'http_port 127.0.0.1:3127 name=l7fwd', 'acl l7_fwdport myportname l7fwd']
-    if rules:
+    if need_tls:
         lines += ['https_port 127.0.0.1:%d intercept ssl-bump generate-host-certificates=on '
                   'dynamic_cert_mem_cache_size=4MB cert=%s key=%s options=NO_SSLv3,NO_TLSv1,NO_TLSv1_1' %
                   (HTTPS_PORT, CA_CRT, CA_KEY),
@@ -188,13 +252,6 @@ def build_squid(cfg):
                   'acl l7_step1 at_step SslBump1']
     if av.get('http', True) and av:
         lines.append('http_port 127.0.0.1:%d intercept' % HTTP_PORT)
-    if av and av.get('https_domains') and not rules:
-        lines += ['https_port 127.0.0.1:%d intercept ssl-bump generate-host-certificates=on '
-                  'dynamic_cert_mem_cache_size=4MB cert=%s key=%s options=NO_SSLv3,NO_TLSv1,NO_TLSv1_1' %
-                  (HTTPS_PORT, CA_CRT, CA_KEY),
-                  'sslcrtd_program %s -s %s -M 4MB' % (CERTGEN, SSL_DB), 'sslcrtd_children 5',
-                  'tls_outgoing_options cafile=/usr/local/etc/ssl/cert.pem min-version=1.2',
-                  'acl l7_step1 at_step SslBump1']
     # one ACL pair per inspection rule
     bump, dlp_allow = [], []
     for i, r in enumerate(rules):
@@ -215,13 +272,20 @@ def build_squid(cfg):
         av_domains = [d for d in av['https_domains'] if DOMAIN.match(d)]
         if av_domains:
             lines.append('acl l7_av_sni ssl::server_name ' + ' '.join('.' + d for d in av_domains))
-    if rules or av_domains:
+    if need_tls:
         lines.append('ssl_bump peek l7_step1')
+        excl = exclusion_list(dpi) if dpi else []
+        if excl and dpi_all:
+            lines.append('acl l7_excl ssl::server_name ' + ' '.join('.' + d for d in excl))
+            lines.append('ssl_bump splice l7_excl')
         for b in bump:
             lines.append('ssl_bump bump ' + b)
         if av_domains:
             lines.append('ssl_bump bump l7_av_sni')
-        lines.append('ssl_bump splice all')
+        if dpi_sites:
+            lines.append('acl l7_dpi_sni ssl::server_name ' + ' '.join('.' + d for d in dpi_sites))
+            lines.append('ssl_bump bump l7_dpi_sni')
+        lines.append('ssl_bump bump all' if dpi_all else 'ssl_bump splice all')
     lines += ['http_access deny l7_fwdport', 'http_access allow all', 'icap_enable on', 'icap_send_client_ip on', 'icap_io_timeout 60 seconds',
               'icap_preview_enable off']
     if rules:
@@ -242,6 +306,53 @@ def build_squid(cfg):
     return '\n'.join(lines) + '\n'
 
 
+def dpi_active(cfg):
+    d = cfg.get('dpi') or {}
+    return bool(d.get('enabled'))
+
+
+def tail_log(rows):
+    """newest sessions of the proxy access log: time, client, site, how it was handled"""
+    out = []
+    try:
+        with open(ACCESS_LOG, 'rb') as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - 400000))
+            data = f.read().decode('utf-8', 'replace').splitlines()
+    except OSError:
+        return {'rows': []}
+    for line in reversed(data):
+        parts = line.split('|')
+        if len(parts) < 8:
+            continue
+        try:
+            ts = int(float(parts[0]))
+        except ValueError:
+            continue
+        mode = parts[5] if parts[5] not in ('-', '') else ''
+        out.append({'ts': ts, 'client': parts[1], 'sni': parts[2] if parts[2] != '-' else '', 'url': parts[3][:160],
+                    'result': parts[4], 'mode': mode, 'status': parts[6], 'bytes': parts[7]})
+        if len(out) >= rows:
+            break
+    return {'rows': out}
+
+
+def prune_log():
+    try:
+        if os.path.getsize(ACCESS_LOG) > 8 * 1024 * 1024:
+            with open(ACCESS_LOG, 'rb') as f:
+                f.seek(-2 * 1024 * 1024, 2)
+                f.readline()
+                tail = f.read()
+            with open(ACCESS_LOG, 'wb') as f:
+                f.write(tail)
+            return {'pruned': True}
+    except OSError:
+        pass
+    return {'pruned': False}
+
+
 def write_config():
     try:
         with open(SETTINGS) as f:
@@ -258,7 +369,7 @@ def write_config():
         chown_squid(d, 0o750)
     os.makedirs(SQUID_HOME, exist_ok=True)
     chown_squid(SQUID_HOME, 0o700)
-    if (cfg.get('rules') or cfg.get('av', {}).get('https_domains')) and not os.path.isdir(SSL_DB) and os.path.exists(CERTGEN):
+    if (cfg.get('rules') or cfg.get('av', {}).get('https_domains') or dpi_active(cfg)) and not os.path.isdir(SSL_DB) and os.path.exists(CERTGEN):
         res = run([CERTGEN, '-c', '-s', SSL_DB, '-M', '4MB'])
         if res.returncode != 0 and not os.path.isdir(SSL_DB):
             return {'written': True, 'warning': 'ssl_db: ' + res.stderr[-200:]}
@@ -325,6 +436,10 @@ def main():
     elif cmd == 'ca-pem':
         sys.stdout.write(ca_pem())
         return
+    elif cmd == 'log':
+        out = tail_log(max(1, min(500, int(a[1]) if len(a) > 1 and a[1].isdigit() else 100)))
+    elif cmd == 'prune':
+        out = prune_log()
     elif cmd == 'write-config':
         out = write_config()
     elif cmd == 'test':

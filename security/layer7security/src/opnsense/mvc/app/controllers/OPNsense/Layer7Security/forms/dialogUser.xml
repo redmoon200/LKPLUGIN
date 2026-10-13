@@ -7,11 +7,11 @@
     </field>
     <field>
         <id>user.addresses</id>
-        <label>IP addresses</label>
+        <label>Device addresses</label>
         <type>select_multiple</type>
         <style>tokenize</style>
         <allownew>true</allownew>
-        <help>Addresses or networks that identify this user (use DHCP static leases so they stay fixed).</help>
+        <help>Addresses or networks that identify this user (use DHCP static leases so they stay fixed). Leave empty for a person who signs in with a user name: use the same name as the account.</help>
     </field>
     <field>
         <id>user.description</id>

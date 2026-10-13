@@ -119,9 +119,12 @@ window.L7 = (function ($) {
         return post('/api/layer7security/service/reconfigure');
     }
 
-    /** turn a button into the standard Apply button */
-    function applyButton(sel, onDone) {
-        $(sel).SimpleActionButton({
+    /**
+     * turn a button into the standard Apply button; forms (ids) are saved first
+     * so that "Apply changes" never loses what was typed
+     */
+    function applyButton(sel, onDone, forms) {
+        var opts = {
             onAction: function (data) {
                 if (data && data.status === 'failed') {
                     BootstrapDialog.show({
@@ -133,7 +136,18 @@ window.L7 = (function ($) {
                 $('#l7-pending').hide();
                 if (onDone) { onDone(data); }
             }
-        });
+        };
+        if (forms && forms.length) {
+            opts.onPreAction = function () {
+                var dfObj = new $.Deferred(), i = 0;
+                (function next() {
+                    if (i >= forms.length) { dfObj.resolve(); return; }
+                    saveFormToEndpoint('/api/layer7security/settings/set', forms[i++], next, true, function () { dfObj.reject(); });
+                }());
+                return dfObj;
+            };
+        }
+        $(sel).SimpleActionButton(opts);
     }
 
     function pending() { $('#l7-pending').show(); }

@@ -1,0 +1,42 @@
+<form>
+    <field>
+        <id>layer7security.dpi.enabled</id>
+        <label>Enable DPI-SSL</label>
+        <type>checkbox</type>
+        <help>Let the firewall decrypt HTTPS so that downloads can be scanned and content rules can be applied. Needs the privacy notice (AI Audit > Privacy) and the certificate installed on every device.</help>
+    </field>
+    <field>
+        <id>layer7security.dpi.scope</id>
+        <label>What to decrypt</label>
+        <type>dropdown</type>
+        <help>"Only the sites listed" is the safe choice. "All HTTPS" decrypts every connection except the exclusions and needs a full certificate.</help>
+    </field>
+    <field>
+        <id>layer7security.dpi.sites</id>
+        <label>Sites to decrypt</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Used when you decrypt only the sites listed. A site includes its sub-domains. AI services and the download sites of Antivirus are added automatically.</help>
+    </field>
+    <field>
+        <id>layer7security.dpi.exclusions</id>
+        <label>Never decrypt these sites</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Banks, health services and anything that must stay private. A site includes its sub-domains.</help>
+    </field>
+    <field>
+        <id>layer7security.dpi.excludeDefaults</id>
+        <label>Also skip well-known pinned sites</label>
+        <type>checkbox</type>
+        <help>Operating system updates, messengers and similar services reject decrypted connections. This ready-made list keeps them working.</help>
+    </field>
+    <field>
+        <id>layer7security.dpi.caMode</id>
+        <label>Certificate type</label>
+        <type>dropdown</type>
+        <help>The type the next new certificate is created with. A restricted certificate can only sign the sites above, so a stolen key is much less dangerous.</help>
+    </field>
+</form>

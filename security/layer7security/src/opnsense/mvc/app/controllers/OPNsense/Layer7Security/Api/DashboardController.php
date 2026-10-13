@@ -10,6 +10,8 @@ namespace OPNsense\Layer7Security\Api;
 
 use OPNsense\Base\ApiControllerBase;
 use OPNsense\Core\Backend;
+use OPNsense\Layer7Security\Layer7Security;
+use OPNsense\Layer7Security\PolicyCompiler;
 
 class DashboardController extends ApiControllerBase
 {
@@ -75,5 +77,35 @@ class DashboardController extends ApiControllerBase
     {
         $data = json_decode(trim((new Backend())->configdRun('layer7security engine-status')), true);
         return is_array($data) ? $data : ['running' => false];
+    }
+
+    /** one line per module for the overview: on or off and a short detail */
+    public function modulesAction()
+    {
+        $g = PolicyCompiler::general();
+        $mdl = new Layer7Security();
+        $web = PolicyCompiler::webRules();
+        $app = 0;
+        foreach ($mdl->policies->policy->iterateItems() as $p) {
+            if ((string)$p->enabled === '1' && (string)$p->module !== 'cfs') {
+                $app++;
+            }
+        }
+        $ai = 0;
+        foreach ($mdl->ai->service->iterateItems() as $r) {
+            $ai += (string)$r->enabled === '1' ? 1 : 0;
+        }
+        $mods = [
+            'web' => ['on' => $g['enabled'] && $g['webEnabled'] && count($web) > 0, 'detail' => count($web) . ' rules', 'url' => '/ui/layer7security/webcontrol'],
+            'app' => ['on' => $g['enabled'] && $app > 0, 'detail' => $app . ' rules', 'url' => '/ui/layer7security/appcontrol'],
+            'cfs' => ['on' => $g['enabled'] && $g['dnsFilter'], 'detail' => count($g['dnsCategories']) . ' categories', 'url' => '/ui/layer7security/cfs'],
+            'dpi' => ['on' => $g['enabled'] && $g['dpiAllowed'], 'detail' => $g['dpiAll'] ? 'all HTTPS' : 'listed sites', 'url' => '/ui/layer7security/dpissl'],
+            'av' => ['on' => $g['enabled'] && $g['avEnabled'], 'detail' => $g['avEnabled'] ? 'signatures ' . (string)$mdl->av->yaraAction : 'off', 'url' => '/ui/layer7security/antivirus'],
+            'ai' => ['on' => $g['enabled'] && $g['aiEnabled'], 'detail' => $ai . ' service rules', 'url' => '/ui/layer7security/ai'],
+            'inspect' => ['on' => $g['enabled'] && $g['inspectionAllowed'], 'detail' => $g['dlpEnabled'] ? 'detectors on' : 'off', 'url' => '/ui/layer7security/inspection'],
+            'audit' => ['on' => $g['enabled'] && $g['auditEnabled'], 'detail' => $g['privacyAck'] ? 'notice acknowledged' : 'notice missing', 'url' => '/ui/layer7security/audit'],
+            'auth' => ['on' => $g['enabled'] && $g['authEnabled'] && is_file('/var/db/layer7security/auth_ready'), 'detail' => $g['authEnabled'] ? 'sign-in required' : 'off', 'url' => '/ui/layer7security/access'],
+        ];
+        return ['modules' => $mods, 'enabled' => $g['enabled']];
     }
 }

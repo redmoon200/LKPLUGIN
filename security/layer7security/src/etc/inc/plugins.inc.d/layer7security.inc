@@ -53,11 +53,25 @@ function layer7security_firewall(Plugin $fw)
     layer7security_geo_rules($fw, $general);
     layer7security_webip_rules($fw, $general);
     layer7security_threat_rules($fw, $general);
+    layer7security_auth_rules($fw, $general);
     layer7security_ai_rules($fw, $general);
     layer7security_proxy_rules($fw, $general);
+    $authReady = is_file('/var/db/layer7security/auth_ready');
     foreach (PolicyCompiler::policies() as $policy) {
         if ($policy['action'] !== 'block') {
             continue;
+        }
+        if ($authReady && !empty($policy['users'])) {
+            /* the addresses of signed-in users, kept up to date by the portal */
+            $file = '/var/db/layer7security/usr_' . $policy['id'] . '.txt';
+            if (!is_file($file)) {
+                touch($file);
+            }
+            $fw->registerTable('l7_usr_' . $policy['id'], true, $file);
+            $fw->registerFilterRule(2, [
+                'type' => 'block', 'direction' => 'in', 'quick' => true, 'from' => '<l7_usr_' . $policy['id'] . '>',
+                'to' => '<' . $policy['table'] . '>', 'descr' => 'Layer7 policy (signed-in users): ' . $policy['name'],
+            ]);
         }
         $fw->registerTable($policy['table'], true);
         $base = [
@@ -104,6 +118,65 @@ function layer7security_mac_anchor(Plugin $fw, array $general)
     file_put_contents($file, $rules);
     mwexecf('/sbin/pfctl -q -a %s -f %s', [$anchor, $file], true);
     $fw->registerTable('l7sec_ref_a> persist' . PHP_EOL . 'ether anchor "' . $anchor . '"' . PHP_EOL . 'table <l7sec_ref_b', false);
+}
+
+/**
+ * Web access sign-in: devices that are not in <l7_auth_ok> cannot use the web. Plain
+ * HTTP is redirected to the portal, HTTPS and QUIC are blocked, the portal and the
+ * firewall's own web interface stay reachable. Only IPv4 can sign in, so IPv6 web
+ * traffic is blocked on these interfaces.
+ */
+function layer7security_auth_rules(Plugin $fw, array $general)
+{
+    if (!is_file('/var/db/layer7security/auth_ready')) {
+        return;
+    }
+    $portal = PolicyCompiler::portal($general);
+    if ($portal === null) {
+        return;
+    }
+    $fw->registerTable('l7_auth_ok', true, '/var/db/layer7security/auth_ok.txt');
+    /* internal destinations need no sign-in */
+    $local = '/var/db/layer7security/auth_local.txt';
+    file_put_contents($local, "10.0.0.0/8\n172.16.0.0/12\n192.168.0.0/16\n");
+    $fw->registerTable('l7_auth_local', true, $local);
+    $gui = (string)(\OPNsense\Core\Config::getInstance()->object()->system->webgui->port ?? '') ?: '443';
+    foreach ($portal['networks'] as $n) {
+        $if = $n['ifid'];
+        /* translation rules (first match wins): internal destinations are never redirected, then the
+           proxy rules take signed-in devices (they have "from <l7_auth_ok>"), the rest goes to the portal */
+        $fw->registerForwardRule(1, [
+            'interface' => $if, 'nordr' => true, 'ipprotocol' => 'inet', 'protocol' => 'tcp',
+            'to' => '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,169.254.0.0/16', 'to_port' => '80',
+            'natreflection' => 'disable', 'descr' => 'Layer7 sign-in: internal websites need no sign-in',
+        ]);
+        $fw->registerForwardRule(3, [
+            'interface' => $if, 'nordr' => false, 'ipprotocol' => 'inet', 'protocol' => 'tcp', 'from' => 'any',
+            'to' => 'any', 'to_port' => '80', 'target' => '127.0.0.1', 'localport' => '8081',
+            'natreflection' => 'disable', 'descr' => 'Layer7 sign-in: send plain web requests to the portal',
+        ]);
+        $pass = ['type' => 'pass', 'interface' => $if, 'direction' => 'in', 'ipprotocol' => 'inet', 'protocol' => 'tcp',
+                 'quick' => true];
+        $fw->registerFilterRule(1, array_merge($pass, ['to' => '127.0.0.1', 'to_port' => '8081',
+            'descr' => 'Layer7 sign-in: redirected web requests']));
+        $fw->registerFilterRule(1, array_merge($pass, ['to' => $n['ip'], 'to_port' => (string)$portal['port'],
+            'descr' => 'Layer7 sign-in: login page']));
+        $fw->registerFilterRule(1, array_merge($pass, ['to' => $n['ip'], 'to_port' => $gui,
+            'descr' => 'Layer7 sign-in: firewall web interface stays reachable']));
+        $block = ['type' => 'block', 'interface' => $if, 'direction' => 'in', 'quick' => true,
+                  'from' => '<l7_auth_ok>', 'from_not' => true,
+                  'to' => '<l7_auth_local>', 'to_not' => true];
+        foreach (['80', '443'] as $port) {
+            $fw->registerFilterRule(1, array_merge($block, ['ipprotocol' => 'inet', 'protocol' => 'tcp', 'to_port' => $port,
+                'descr' => 'Layer7 sign-in: web access needs sign-in']));
+            $fw->registerFilterRule(1, [
+                'type' => 'block', 'interface' => $if, 'direction' => 'in', 'quick' => true, 'ipprotocol' => 'inet6',
+                'protocol' => 'tcp', 'to_port' => $port, 'descr' => 'Layer7 sign-in: IPv6 web traffic cannot sign in',
+            ]);
+        }
+        $fw->registerFilterRule(1, array_merge($block, ['ipprotocol' => 'inet', 'protocol' => 'udp', 'to_port' => '443',
+            'descr' => 'Layer7 sign-in: QUIC needs sign-in']));
+    }
 }
 
 /** GeoIP: one table per policy (file written by geo_build.py) and block rules */
@@ -244,16 +317,30 @@ function layer7security_ai_rules(Plugin $fw, array $general)
 function layer7security_proxy_rules(Plugin $fw, array $general)
 {
     $https = !empty($general['aiInspect']);
+    $all = !empty($general['dpiAll']);
     $http = $general['avEnabled'] && $general['avHttp'];
-    if (!$https && !$http) {
+    if (!$https && !$http && !$all) {
         return;
     }
     if ($https) {
         $fw->registerTable('l7_ai_bump', true);
     }
+    $signIn = [];
+    if (is_file('/var/db/layer7security/auth_ready') && ($portal = PolicyCompiler::portal($general)) !== null) {
+        $signIn = array_column($portal['networks'], 'ifid');
+    }
     foreach ($general['ifids'] as $ifid) {
+        $from = in_array($ifid, $signIn, true) ? '<l7_auth_ok>' : 'any';
         $ports = [];
-        if ($https) {
+        if ($all) {
+            /* DPI-SSL for all HTTPS: internal destinations stay untouched, the proxy splices the exclusions */
+            $fw->registerForwardRule(2, [
+                'interface' => $ifid, 'nordr' => true, 'ipprotocol' => 'inet', 'protocol' => 'tcp',
+                'to' => '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,169.254.0.0/16', 'to_port' => '443',
+                'natreflection' => 'disable', 'descr' => 'Layer7 DPI-SSL: no decryption for internal destinations',
+            ]);
+            $ports[] = ['443', '3129', 'any'];
+        } elseif ($https) {
             $ports[] = ['443', '3129', '<l7_ai_bump>'];
         }
         if ($http) {
@@ -267,7 +354,7 @@ function layer7security_proxy_rules(Plugin $fw, array $general)
         }
         foreach ($ports as [$dport, $lport, $to]) {
             $fw->registerForwardRule(2, [
-                'interface' => $ifid, 'nordr' => false, 'ipprotocol' => 'inet', 'protocol' => 'tcp',
+                'interface' => $ifid, 'nordr' => false, 'ipprotocol' => 'inet', 'protocol' => 'tcp', 'from' => $from,
                 'to' => $to, 'to_port' => $dport, 'target' => '127.0.0.1', 'localport' => $lport,
                 'natreflection' => 'disable', 'descr' => 'Layer7: redirect to the inspection proxy',
             ]);
@@ -292,5 +379,6 @@ function layer7security_cron()
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security audit-prune', '23', '3']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security av-feed-auto', '11', '*/3']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security av-prune', '37', '3']],
+        ['autocron' => ['/usr/local/sbin/configctl -d layer7security inspection-prune', '47', '*']],
     ];
 }

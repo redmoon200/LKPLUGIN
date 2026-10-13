@@ -102,7 +102,7 @@
 <script>
 $(document).ready(function () {
     var E = L7.esc, SHOW = 'all', LOG = [];
-    L7.applyButton('#reconfigureAct', loadStatus);
+    L7.applyButton('#reconfigureAct', loadStatus, ['frm_web']);
     L7.rememberTabs('web');
     L7.engineStatus('#l7-engine-pill');
 

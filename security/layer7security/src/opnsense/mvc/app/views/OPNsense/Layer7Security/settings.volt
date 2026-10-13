@@ -1,5 +1,27 @@
+<div class="l7">
+    {{ partial('OPNsense/Layer7Security/partials/header', [
+        'title': lang._('Layer 7 Settings'),
+        'subtitle': lang._('Switch the engine on, choose the networks it watches and how long data is kept.'),
+        'icon': 'cog',
+        'accent': 'con',
+        'apply': true
+    ]) }}
+
+<div>
+    {{ partial("layout_partials/base_form", ['fields': generalForm, 'id': 'frm_general']) }}
+    <div class="col-md-12">
+        <button class="btn btn-default" id="catalogAct" type="button">
+            <i id="catalogAct_progress"></i> {{ lang._('Refresh application catalog') }}
+        </button>
+        <br/><br/>
+    </div>
+</div>
+</div>
+
 <script>
     $(document).ready(function () {
+        L7.engineStatus('#l7-engine-pill');
+        $('#l7-module-pill').remove();
         mapDataToFormUI({ 'frm_general': '/api/layer7security/settings/get' }).done(function () {
             $('.selectpicker').selectpicker('refresh');
             updateServiceControlUI('layer7security');
@@ -32,19 +54,3 @@
         });
     });
 </script>
-
-<div class="content-box">
-    {{ partial("layout_partials/base_form", ['fields': generalForm, 'id': 'frm_general']) }}
-    <div class="col-md-12">
-        <hr/>
-        <button class="btn btn-primary" id="reconfigureAct"
-                data-endpoint="/api/layer7security/service/reconfigure"
-                data-label="{{ lang._('Apply') }}"
-                data-error-title="{{ lang._('Error applying Layer 7 configuration') }}"
-                type="button"></button>
-        <button class="btn btn-default" id="catalogAct" type="button">
-            <i id="catalogAct_progress"></i> {{ lang._('Refresh application catalog') }}
-        </button>
-        <br/><br/>
-    </div>
-</div>
