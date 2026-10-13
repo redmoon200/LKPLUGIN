@@ -1,0 +1,66 @@
+<form>
+    <field>
+        <id>layer7security.auth.enabled</id>
+        <label>Require sign-in for web access</label>
+        <type>checkbox</type>
+        <help>Devices on the networks below can only use websites after they have signed in on the login page. Everything else (DNS, DHCP, mail, other services) keeps working.</help>
+    </field>
+    <field>
+        <id>layer7security.auth.interfaces</id>
+        <label>Networks that must sign in</label>
+        <type>select_multiple</type>
+        <help>Choose the LAN or VLAN interfaces whose devices have to sign in. The interface needs a static IPv4 address.</help>
+    </field>
+    <field>
+        <id>layer7security.auth.server</id>
+        <label>Check passwords with</label>
+        <type>text</type>
+        <help>The name of an authentication server from System > Access > Servers. "Local Database" uses the users you created under System > Access > Users.</help>
+    </field>
+    <field>
+        <id>layer7security.auth.groups</id>
+        <label>Only these groups may sign in</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Optional. Leave empty to let every user of the server sign in. Enter group names as they exist on the server.</help>
+    </field>
+    <field>
+        <id>layer7security.auth.sessionHours</id>
+        <label>Stay signed in for (hours)</label>
+        <type>text</type>
+        <help>After this time the device has to sign in again.</help>
+    </field>
+    <field>
+        <id>layer7security.auth.idleMinutes</id>
+        <label>Sign out after being idle (minutes)</label>
+        <type>text</type>
+        <help>0 turns this off. A device is idle when it has no traffic for this long.</help>
+    </field>
+    <field>
+        <id>layer7security.auth.bypass</id>
+        <label>Never ask these devices</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Addresses or networks that do not have to sign in: servers, printers, your own admin computer.</help>
+    </field>
+    <field>
+        <id>layer7security.auth.title</id>
+        <label>Login page title</label>
+        <type>text</type>
+    </field>
+    <field>
+        <id>layer7security.auth.message</id>
+        <label>Login page message</label>
+        <type>text</type>
+        <help>A short text shown under the title, for example who to ask for an account.</help>
+    </field>
+    <field>
+        <id>layer7security.auth.portalPort</id>
+        <label>Login page port</label>
+        <type>text</type>
+        <advanced>true</advanced>
+        <help>The login page is served over HTTPS on the firewall address of each network at this port.</help>
+    </field>
+</form>

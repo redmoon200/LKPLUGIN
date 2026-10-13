@@ -3,6 +3,12 @@
         <name>Services: Layer 7 Security</name>
         <patterns>
             <pattern>ui/layer7security/dashboard*</pattern>
+            <pattern>ui/layer7security/live*</pattern>
+            <pattern>ui/layer7security/webcontrol*</pattern>
+            <pattern>ui/layer7security/appcontrol*</pattern>
+            <pattern>ui/layer7security/cfs*</pattern>
+            <pattern>ui/layer7security/dpissl*</pattern>
+            <pattern>ui/layer7security/access*</pattern>
             <pattern>ui/layer7security/flows*</pattern>
             <pattern>ui/layer7security/policies*</pattern>
             <pattern>ui/layer7security/users*</pattern>
@@ -23,6 +29,7 @@
             <pattern>api/layer7security/antivirus/*</pattern>
             <pattern>api/layer7security/webcontrol/*</pattern>
             <pattern>api/layer7security/live/*</pattern>
+            <pattern>api/layer7security/access/*</pattern>
         </patterns>
     </page-services-layer7security>
     <page-services-layer7security-audit>

@@ -1,31 +1,45 @@
 <form>
     <field>
         <id>layer7security.av.enabled</id>
-        <label>Enable download protection</label>
+        <label>Enable antivirus for downloads</label>
         <type>checkbox</type>
-        <help>Checks files downloaded through the firewall for dangerous file types and known malware hashes. This is not a signature-based virus scanner: it recognises files that are already known to be bad and controls risky file types.</help>
+        <help>Checks every file that is downloaded through the firewall: known malware hashes, virus signatures and risky file types.</help>
     </field>
     <field>
         <id>layer7security.av.scanHttp</id>
-        <label>Scan plain HTTP downloads</label>
+        <label>Check plain web (HTTP) downloads</label>
         <type>checkbox</type>
-        <help>Unencrypted web downloads are checked transparently. Most sites use HTTPS; see below.</help>
+        <help>Unencrypted web downloads are checked automatically. Most sites use HTTPS, see below.</help>
     </field>
     <field>
         <id>layer7security.av.httpsDomains</id>
-        <label>Also scan HTTPS downloads from</label>
+        <label>Also check HTTPS downloads from</label>
         <type>text</type>
+        <help>Download sites whose encrypted traffic may be opened (needs DPI-SSL, the certificate on the devices and the privacy notice). With DPI-SSL set to "All HTTPS" every site is checked.</help>
     </field>
     <field>
         <id>layer7security.av.hashAction</id>
-        <label>Known malware hashes</label>
+        <label>Known malware (hash match)</label>
         <type>dropdown</type>
-        <help>The SHA-256 of every download is looked up in the feed, your own list and the EICAR test file.</help>
+        <help>The MD5, SHA-1 and SHA-256 of the file are looked up in the malware lists from the cloud server, your own list and the EICAR test file.</help>
+    </field>
+    <field>
+        <id>layer7security.av.yaraAction</id>
+        <label>Virus signatures</label>
+        <type>dropdown</type>
+        <help>Rules that recognise malware by what is inside the file (YARA signatures from the cloud server). Start with "Monitor" and switch to "Block" when you are happy with the results.</help>
+    </field>
+    <field>
+        <id>layer7security.av.useCloud</id>
+        <label>Get hashes and signatures from the cloud server</label>
+        <type>checkbox</type>
+        <help>Uses the cloud server address of Protection > CFS > Settings.</help>
     </field>
     <field>
         <id>layer7security.av.executableAction</id>
         <label>Programs (exe, dll, ELF, Mach-O)</label>
         <type>dropdown</type>
+        <help>Based on the content of the file, not on its name or what the server claims.</help>
     </field>
     <field>
         <id>layer7security.av.scriptAction</id>
@@ -41,46 +55,47 @@
         <id>layer7security.av.archiveAction</id>
         <label>Archives (zip, rar, 7z, gz ...)</label>
         <type>dropdown</type>
-        <help>Archives are not opened; only the archive file itself is looked up.</help>
+        <help>Archives are not opened; only the archive file itself is checked.</help>
     </field>
     <field>
         <id>layer7security.av.customHashes</id>
         <label>Your own blocked hashes</label>
         <type>text</type>
-        <help>SHA-256 hashes separated by commas.</help>
+        <help>MD5, SHA-1 or SHA-256 hashes separated by commas.</help>
     </field>
     <field>
         <id>layer7security.av.feedUrl</id>
-        <label>Malware hash feed URL</label>
+        <label>Extra hash list address</label>
         <type>text</type>
-        <help>A text or CSV file with one SHA-256 per line, for example an export from abuse.ch MalwareBazaar (it needs a free key) or your own list. Leave empty to use only your own hashes.</help>
+        <advanced>true</advanced>
+        <help>Optional: a text or CSV file with SHA-256 hashes, one per line, for example an export from abuse.ch MalwareBazaar (needs a free key) or your own list.</help>
     </field>
     <field>
         <id>layer7security.av.feedAuthKey</id>
-        <label>Feed key</label>
+        <label>Key for the extra hash list</label>
         <type>text</type>
         <advanced>true</advanced>
-        <help>Sent as an "Auth-Key" header (abuse.ch). Leave empty if the feed needs none.</help>
+        <help>Sent as an "Auth-Key" header (abuse.ch). Leave empty if the list needs none.</help>
     </field>
     <field>
         <id>layer7security.av.feedHours</id>
-        <label>Update the feed every (hours)</label>
+        <label>Update the extra list every (hours)</label>
         <type>text</type>
         <advanced>true</advanced>
     </field>
     <field>
         <id>layer7security.av.skipDomains</id>
-        <label>Never scan these sites</label>
+        <label>Never check these sites</label>
         <type>text</type>
         <advanced>true</advanced>
         <help>Trusted download sites, separated by commas. Example: downloads.example.com</help>
     </field>
     <field>
         <id>layer7security.av.maxSizeMb</id>
-        <label>Largest file looked up (MB)</label>
+        <label>Largest file checked (MB)</label>
         <type>text</type>
         <advanced>true</advanced>
-        <help>Bigger files pass unlooked; file types are still recorded.</help>
+        <help>Bigger files are not hashed; their type is still logged.</help>
     </field>
     <field>
         <id>layer7security.av.failMode</id>

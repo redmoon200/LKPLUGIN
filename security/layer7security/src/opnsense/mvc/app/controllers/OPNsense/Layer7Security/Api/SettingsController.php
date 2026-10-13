@@ -39,12 +39,22 @@ class SettingsController extends ApiMutableModelControllerBase
 
     public function searchPolicyAction()
     {
+        $module = (string)$this->request->get('module', 'string', '');
         return $this->searchBase(
             'policies.policy',
             ['enabled', 'sequence', 'name', 'action', 'applications', 'categories', 'interfaces',
-             'sources', 'users', 'days', 'startTime', 'endTime', 'dnsCategories', 'description'],
-            'sequence'
+             'sources', 'users', 'days', 'startTime', 'endTime', 'dnsCategories', 'dnsDomains', 'module', 'description'],
+            'sequence',
+            function ($row) use ($module) {
+                return $module === '' || (string)$row->module === $module;
+            }
         );
+    }
+
+    /** a content-filter rule: the same record as a policy, marked for the CFS page */
+    public function addCfsAction()
+    {
+        return $this->addBase('policy', 'policies.policy', ['module' => 'cfs']);
     }
 
     public function getPolicyAction($uuid = null)

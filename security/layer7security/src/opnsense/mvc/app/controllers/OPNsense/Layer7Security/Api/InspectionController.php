@@ -35,6 +35,26 @@ class InspectionController extends ApiControllerBase
         return $status;
     }
 
+    /** sessions the proxy decrypted or passed through (newest first) */
+    public function logAction()
+    {
+        $rows = max(1, min(500, (int)$this->request->get('rows', 'int', 100)));
+        return $this->json('layer7security inspection-log', [$rows]);
+    }
+
+    /** sites DPI-SSL skips by default */
+    public function defaultsAction()
+    {
+        $rows = [];
+        foreach (@file('/usr/local/share/layer7security/dpi_exclusions.txt', FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+            $line = strtolower(trim(preg_replace('/#.*$/', '', $line)));
+            if ($line !== '') {
+                $rows[] = $line;
+            }
+        }
+        return ['rows' => $rows];
+    }
+
     public function caInfoAction()
     {
         return $this->json('layer7security inspection-ca-info');

@@ -1,0 +1,39 @@
+# Sites that DPI-SSL never decrypts by default (certificate pinning, operating system
+# updates, privacy-sensitive services). One domain per line; sub-domains are included.
+# Add your own sites on the DPI-SSL page (Exclusions).
+
+# Apple
+apple.com
+icloud.com
+mzstatic.com
+apple-cloudkit.com
+push.apple.com
+cdn-apple.com
+# Microsoft updates and sign-in
+windowsupdate.com
+update.microsoft.com
+delivery.mp.microsoft.com
+login.microsoftonline.com
+login.live.com
+# Google apps and Android
+play.googleapis.com
+android.clients.google.com
+android.googleapis.com
+mtalk.google.com
+accounts.google.com
+# Messaging and calls
+whatsapp.net
+whatsapp.com
+signal.org
+telegram.org
+zoom.us
+zoom.com
+# Cloud storage clients
+dropbox.com
+dropboxapi.com
+onedrive.live.com
+# Payments (sensitive)
+paypal.com
+paypalobjects.com
+stripe.com
+# Health and government portals are better added by the administrator.

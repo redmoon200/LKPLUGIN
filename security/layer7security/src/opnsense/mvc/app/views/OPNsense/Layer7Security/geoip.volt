@@ -1,5 +1,68 @@
+<div class="l7">
+    {{ partial('OPNsense/Layer7Security/partials/header', [
+        'title': lang._('GeoIP'),
+        'subtitle': lang._('Allow or block traffic to and from countries.'),
+        'icon': 'globe',
+        'accent': 'con',
+        'apply': true
+    ]) }}
+
+<div>
+    <div class="alert alert-info" role="alert" style="margin: 15px;">
+        {{ lang._('Country data maps address ranges by registry allocation. It is accurate for most addresses but not for CDNs, VPNs or mobile carriers; use it as a coarse filter, not as proof of location.') }}
+    </div>
+    {{ partial("layout_partials/base_form", ['fields': geoForm, 'id': 'frm_geo']) }}
+    <div class="col-md-12">
+        <p><strong>{{ lang._('Database') }}:</strong> <span id="geo-db">-</span></p>
+        <h3>{{ lang._('Policies') }}</h3>
+        <table id="grid-geo" class="table table-condensed table-hover table-striped" data-editDialog="DialogGeo" data-editAlert="geoChangeMessage">
+            <thead>
+                <tr>
+                    <th data-column-id="uuid" data-type="string" data-identifier="true" data-visible="false">{{ lang._('ID') }}</th>
+                    <th data-column-id="enabled" data-width="6em" data-type="string" data-formatter="rowtoggle">{{ lang._('Enabled') }}</th>
+                    <th data-column-id="name" data-type="string">{{ lang._('Name') }}</th>
+                    <th data-column-id="action" data-type="string">{{ lang._('Action') }}</th>
+                    <th data-column-id="direction" data-type="string">{{ lang._('Direction') }}</th>
+                    <th data-column-id="countries" data-type="string">{{ lang._('Countries') }}</th>
+                    <th data-column-id="interfaces" data-type="string">{{ lang._('Interfaces') }}</th>
+                    <th data-column-id="exceptions" data-type="string">{{ lang._('Exceptions') }}</th>
+                    <th data-column-id="commands" data-width="7em" data-formatter="commands" data-sortable="false">{{ lang._('Commands') }}</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+                <tr>
+                    <td></td>
+                    <td>
+                        <button data-action="add" type="button" class="btn btn-xs btn-primary"><span class="fa fa-fw fa-plus"></span></button>
+                        <button data-action="deleteSelected" type="button" class="btn btn-xs btn-default"><span class="fa fa-fw fa-trash-o"></span></button>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+        <div id="geoChangeMessage" class="alert alert-info" style="display: none" role="alert">
+            {{ lang._('After changing policies, click Apply to rebuild the country tables and reload the firewall.') }}
+        </div>
+        <h3>{{ lang._('Tables and dropped traffic') }}</h3>
+        <table class="table table-condensed table-striped" id="tbl-geo" style="max-width: 720px;">
+            <thead><tr><th>{{ lang._('Policy') }}</th><th>{{ lang._('Table entries') }}</th><th>{{ lang._('Packets dropped') }}</th><th>{{ lang._('Bytes dropped') }}</th></tr></thead>
+            <tbody></tbody>
+        </table>
+        <button class="btn btn-default" id="geoUpdate" type="button">
+            <i id="geoUpdate_progress"></i> {{ lang._('Update database') }}
+        </button>
+        <br/><br/>
+    </div>
+</div>
+</div>
+
+{{ partial("layout_partials/base_dialog", ['fields': formDialogGeo, 'id': 'DialogGeo', 'label': lang._('Edit GeoIP policy')]) }}
+
+
 <script>
     $(document).ready(function () {
+        L7.engineStatus('#l7-engine-pill');
+        $('#l7-module-pill').remove();
         function esc(value) {
             return $('<div>').text(value === null || value === undefined ? '' : String(value)).html();
         }
@@ -76,59 +139,3 @@
         });
     });
 </script>
-
-<div class="content-box">
-    <div class="alert alert-info" role="alert" style="margin: 15px;">
-        {{ lang._('Country data maps address ranges by registry allocation. It is accurate for most addresses but not for CDNs, VPNs or mobile carriers; use it as a coarse filter, not as proof of location.') }}
-    </div>
-    {{ partial("layout_partials/base_form", ['fields': geoForm, 'id': 'frm_geo']) }}
-    <div class="col-md-12">
-        <p><strong>{{ lang._('Database') }}:</strong> <span id="geo-db">-</span></p>
-        <h3>{{ lang._('Policies') }}</h3>
-        <table id="grid-geo" class="table table-condensed table-hover table-striped" data-editDialog="DialogGeo" data-editAlert="geoChangeMessage">
-            <thead>
-                <tr>
-                    <th data-column-id="uuid" data-type="string" data-identifier="true" data-visible="false">{{ lang._('ID') }}</th>
-                    <th data-column-id="enabled" data-width="6em" data-type="string" data-formatter="rowtoggle">{{ lang._('Enabled') }}</th>
-                    <th data-column-id="name" data-type="string">{{ lang._('Name') }}</th>
-                    <th data-column-id="action" data-type="string">{{ lang._('Action') }}</th>
-                    <th data-column-id="direction" data-type="string">{{ lang._('Direction') }}</th>
-                    <th data-column-id="countries" data-type="string">{{ lang._('Countries') }}</th>
-                    <th data-column-id="interfaces" data-type="string">{{ lang._('Interfaces') }}</th>
-                    <th data-column-id="exceptions" data-type="string">{{ lang._('Exceptions') }}</th>
-                    <th data-column-id="commands" data-width="7em" data-formatter="commands" data-sortable="false">{{ lang._('Commands') }}</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-            <tfoot>
-                <tr>
-                    <td></td>
-                    <td>
-                        <button data-action="add" type="button" class="btn btn-xs btn-primary"><span class="fa fa-fw fa-plus"></span></button>
-                        <button data-action="deleteSelected" type="button" class="btn btn-xs btn-default"><span class="fa fa-fw fa-trash-o"></span></button>
-                    </td>
-                </tr>
-            </tfoot>
-        </table>
-        <div id="geoChangeMessage" class="alert alert-info" style="display: none" role="alert">
-            {{ lang._('After changing policies, click Apply to rebuild the country tables and reload the firewall.') }}
-        </div>
-        <h3>{{ lang._('Tables and dropped traffic') }}</h3>
-        <table class="table table-condensed table-striped" id="tbl-geo" style="max-width: 720px;">
-            <thead><tr><th>{{ lang._('Policy') }}</th><th>{{ lang._('Table entries') }}</th><th>{{ lang._('Packets dropped') }}</th><th>{{ lang._('Bytes dropped') }}</th></tr></thead>
-            <tbody></tbody>
-        </table>
-        <hr/>
-        <button class="btn btn-primary" id="reconfigureAct"
-                data-endpoint="/api/layer7security/service/reconfigure"
-                data-label="{{ lang._('Apply') }}"
-                data-error-title="{{ lang._('Error applying GeoIP policies') }}"
-                type="button"></button>
-        <button class="btn btn-default" id="geoUpdate" type="button">
-            <i id="geoUpdate_progress"></i> {{ lang._('Update database') }}
-        </button>
-        <br/><br/>
-    </div>
-</div>
-
-{{ partial("layout_partials/base_dialog", ['fields': formDialogGeo, 'id': 'DialogGeo', 'label': lang._('Edit GeoIP policy')]) }}

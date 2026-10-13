@@ -1,0 +1,77 @@
+#!/bin/sh
+
+# Copyright (c) 2026, redmoon200
+# All rights reserved.
+# SPDX-License-Identifier: BSD-2-Clause
+
+# PROVIDE: layer7security_portal
+# REQUIRE: LOGIN
+# KEYWORD: shutdown
+
+# Sign-in portal for web access (login page and HTTP redirect), supervised by daemon(8).
+
+. /etc/rc.subr
+
+name=layer7security_portal
+rcvar=layer7security_portal_enable
+desc="Layer 7 Security sign-in portal"
+
+load_rc_config ${name}
+
+: ${layer7security_portal_enable:=NO}
+
+script=/usr/local/opnsense/scripts/OPNsense/Layer7Security/portal.py
+pidfile=/var/run/l7portal.pid
+
+start_cmd=l7portal_start
+stop_cmd=l7portal_stop
+status_cmd=l7portal_status
+restart_cmd=l7portal_restart
+
+l7portal_running()
+{
+	[ -f ${pidfile} ] && kill -0 "$(cat ${pidfile})" 2>/dev/null
+}
+
+l7portal_start()
+{
+	if [ ! -f /usr/local/etc/layer7security/portal.json ]; then
+		echo "portal.json not found, apply the configuration first" >&2
+		return 1
+	fi
+	l7portal_running || /usr/sbin/daemon -r -P ${pidfile} -o /var/log/l7portal.log /usr/local/bin/python3 ${script}
+	echo "Starting ${name}."
+}
+
+l7portal_stop()
+{
+	if l7portal_running; then
+		kill "$(cat ${pidfile})" 2>/dev/null
+		n=0
+		while l7portal_running && [ $n -lt 50 ]; do
+			sleep 0.1
+			n=$((n + 1))
+		done
+		l7portal_running && kill -9 "$(cat ${pidfile})" 2>/dev/null
+	fi
+	rm -f ${pidfile}
+	echo "Stopped ${name}."
+}
+
+l7portal_status()
+{
+	if l7portal_running; then
+		echo "${name} is running (pid $(cat ${pidfile}))."
+		return 0
+	fi
+	echo "${name} is not running."
+	return 1
+}
+
+l7portal_restart()
+{
+	l7portal_stop
+	l7portal_start
+}
+
+run_rc_command "$1"

@@ -1,0 +1,79 @@
+<form>
+    <field>
+        <id>policy.enabled</id>
+        <label>Enabled</label>
+        <type>checkbox</type>
+    </field>
+    <field>
+        <id>policy.name</id>
+        <label>Name</label>
+        <type>text</type>
+        <help>For example "Students: no games".</help>
+    </field>
+    <field>
+        <id>policy.sequence</id>
+        <label>Order</label>
+        <type>text</type>
+        <help>Rules are checked from the lowest number up.</help>
+    </field>
+    <field>
+        <id>policy.action</id>
+        <label>What to do</label>
+        <type>dropdown</type>
+        <help>Block the categories for this group, or allow them (an exception to the rules for everyone).</help>
+    </field>
+    <field>
+        <id>policy.dnsCategories</id>
+        <label>Categories</label>
+        <type>select_multiple</type>
+    </field>
+    <field>
+        <id>policy.dnsDomains</id>
+        <label>Extra websites</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Websites that belong to this rule in addition to the categories.</help>
+    </field>
+    <field>
+        <id>policy.interfaces</id>
+        <label>Networks (LAN, VLAN)</label>
+        <type>select_multiple</type>
+        <help>Empty means all networks.</help>
+    </field>
+    <field>
+        <id>policy.sources</id>
+        <label>Devices</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Optional device addresses or networks, for example 10.77.0.25 or 10.77.0.0/24.</help>
+    </field>
+    <field>
+        <id>policy.users</id>
+        <label>Named users</label>
+        <type>select_multiple</type>
+        <help>People defined under Layer 7 > Users and Access. Their device addresses are used.</help>
+    </field>
+    <field>
+        <id>policy.days</id>
+        <label>Active days</label>
+        <type>select_multiple</type>
+    </field>
+    <field>
+        <id>policy.startTime</id>
+        <label>From</label>
+        <type>text</type>
+        <help>HH:MM. The same start and end time means all day.</help>
+    </field>
+    <field>
+        <id>policy.endTime</id>
+        <label>Until</label>
+        <type>text</type>
+    </field>
+    <field>
+        <id>policy.description</id>
+        <label>Note</label>
+        <type>text</type>
+    </field>
+</form>

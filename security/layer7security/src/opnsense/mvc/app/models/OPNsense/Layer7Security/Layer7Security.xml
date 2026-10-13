@@ -701,7 +701,7 @@
                     </Constraints>
                 </name>
                 <addresses type="NetworkField">
-                    <Required>Y</Required>
+                    <Required>N</Required>
                     <asList>Y</asList>
                     <WildcardEnabled>N</WildcardEnabled>
                     <ValidationMessage>Enter IP addresses or networks (CIDR), separated by commas.</ValidationMessage>

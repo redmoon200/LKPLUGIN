@@ -11,7 +11,7 @@ namespace OPNsense\Layer7Security\Api;
 use OPNsense\Base\ApiControllerBase;
 use OPNsense\Core\Backend;
 
-/** web download protection: detections, hash feed and a hash lookup */
+/** antivirus for downloads: detections, hash and signature data, a hash lookup and a file scan */
 class AntivirusController extends ApiControllerBase
 {
     private function json($action, $params = [])
@@ -50,12 +50,23 @@ class AntivirusController extends ApiControllerBase
         return $data;
     }
 
+    /** download hashes and signatures from the cloud server, and the optional extra hash list */
     public function feedUpdateAction()
     {
         if (!$this->request->isPost()) {
             return ['updated' => false, 'error' => 'POST required'];
         }
-        return $this->json('layer7security av-feed-update');
+        $be = new Backend();
+        $cloud = json_decode(trim($be->configdpRun('layer7security feed-update-parts', ['hashes,signatures'])), true);
+        $own = $this->json('layer7security av-feed-update');
+        $out = $own;
+        $out['cloud'] = is_array($cloud) ? $cloud : [];
+        $cloudOk = is_array($cloud) && ($cloud['result'] ?? '') === 'ok' && (!empty($cloud['hashes']) || !empty($cloud['signatures']));
+        $out['updated'] = !empty($own['updated']) || $cloudOk;
+        if (!$out['updated'] && empty($out['error']) && is_array($cloud) && ($cloud['result'] ?? '') === 'skipped') {
+            $out['error'] = 'No cloud server address is set (Protection > CFS > Settings) and no extra hash list is configured.';
+        }
+        return $out;
     }
 
     public function checkAction()
@@ -63,10 +74,41 @@ class AntivirusController extends ApiControllerBase
         if (!$this->request->isPost()) {
             return ['error' => 'POST required'];
         }
-        $hash = strtolower(trim((string)$this->request->getPost('sha256', null, '')));
-        if (!preg_match('/^[0-9a-f]{64}$/', $hash)) {
-            return ['error' => 'A SHA-256 hash has 64 hexadecimal characters.'];
+        $hash = strtolower(trim((string)$this->request->getPost('hash', null, $this->request->getPost('sha256', null, ''))));
+        if (!preg_match('/^([0-9a-f]{32}|[0-9a-f]{40}|[0-9a-f]{64})$/', $hash)) {
+            return ['error' => 'Enter an MD5 (32), SHA-1 (40) or SHA-256 (64) hash in hexadecimal.'];
         }
         return $this->json('layer7security av-check', [$hash]);
+    }
+
+    /** scan an uploaded file with the same checks downloads get (nothing is kept) */
+    public function scanFileAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['error' => 'POST required'];
+        }
+        $files = $this->request->getUploadedFiles();
+        if (empty($files) || $files[0]->getError() !== 0) {
+            return ['error' => 'No file was received.'];
+        }
+        $f = $files[0];
+        if ($f->getSize() > 25 * 1024 * 1024) {
+            return ['error' => 'The file is larger than 25 MB.'];
+        }
+        $dir = '/var/db/layer7security/av/tmp';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0700, true);
+        }
+        $path = $dir . '/up.' . bin2hex(random_bytes(8));
+        $old = umask(0077);
+        $ok = $f->moveTo($path);
+        umask($old);
+        if (!$ok) {
+            return ['error' => 'The file could not be read.'];
+        }
+        $name = preg_replace('/[^A-Za-z0-9._-]/', '_', substr($f->getName(), 0, 80));
+        $out = $this->json('layer7security av-scan-file', [$path, $name === '' ? 'file' : $name]);
+        @unlink($path);
+        return $out ?: ['error' => 'The scan failed.'];
     }
 }

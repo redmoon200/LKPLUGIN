@@ -17,6 +17,7 @@
 #   avscan.py list ROWS OFFSET PERIOD PHRASE
 #   avscan.py feed-update [auto]
 #   avscan.py check HASH            MD5, SHA-1 or SHA-256
+#   avscan.py scan-file PATH NAME   (GUI test tool)
 #   avscan.py prune
 #
 # Only the file name (no query string), size, type and hash of a detection are kept.
@@ -494,6 +495,27 @@ def load_cli_settings():
         pass
 
 
+def scan_file_cli(path, name):
+    """what the download checks would say about a local file (GUI test tool); the file is read, not kept"""
+    if not re.fullmatch(r'/var/db/layer7security/av/tmp/up\.[0-9a-f]{16}', path or '') or not os.path.isfile(path):
+        return {'error': 'bad path'}
+    with open(path, 'rb') as f:
+        data = f.read(26 * 1024 * 1024)
+    digests = {'sha256': hashlib.sha256(data).hexdigest(), 'sha1': hashlib.sha1(data).hexdigest(),
+               'md5': hashlib.md5(data).hexdigest()}
+    kind, label = classify(data[:600], name)
+    hit = lookup(digests)
+    sig = signatures.scan_bytes(data) if data and signatures.status().get('ready') else []
+    verdict = 'clean'
+    if hit or sig:
+        verdict = 'malware'
+    elif kind:
+        verdict = 'risky type'
+    return {'name': name, 'size': len(data), 'type': kind or '', 'label': label, 'digests': digests, 'known': bool(hit),
+            'eicar': digests['sha256'] == EICAR_SHA256, 'family': families.get(hit[1], '') if hit else '',
+            'signatures': sorted(set(sig))[:10], 'signaturesReady': bool(signatures.status().get('ready')), 'verdict': verdict}
+
+
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else 'status'
     load_cli_settings()
@@ -518,6 +540,9 @@ def main(argv):
             load_hashes(force=True)
             out = {'hash': digest, 'sha256': digest if len(digest) == 64 else '', 'known': is_known(digest),
                    'eicar': digest == EICAR_SHA256, 'family': families.get(digest, '')}
+    elif cmd == 'scan-file':
+        load_hashes(force=True)
+        out = scan_file_cli(argv[2] if len(argv) > 2 else '', re.sub(r'[^A-Za-z0-9._-]', '_', argv[3])[:80] if len(argv) > 3 else 'file')
     elif cmd == 'prune':
         out = prune()
     else:

@@ -34,6 +34,17 @@ class PolicyCompiler
         return null;
     }
 
+    /** IPv4 address of an interface with a static address, else null */
+    public static function address($ifid)
+    {
+        $cfg = Config::getInstance()->object();
+        if (!isset($cfg->interfaces->$ifid)) {
+            return null;
+        }
+        $ip = (string)$cfg->interfaces->$ifid->ipaddr;
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false ? $ip : null;
+    }
+
     /** IPv4 network (CIDR) of an interface with a static address, else null */
     public static function network($ifid)
     {
@@ -99,6 +110,13 @@ class PolicyCompiler
             'youtubeMode' => (string)$mdl->cfs->youtube ?: 'off',
             'threatIps' => self::csv($mdl->cfs->threatIps),
             'threatDirection' => (string)$mdl->cfs->threatDirection ?: 'both',
+            'authEnabled' => (string)$mdl->auth->enabled === '1',
+            'dpiEnabled' => (string)$mdl->dpi->enabled === '1',
+            'dpiScope' => (string)$mdl->dpi->scope ?: 'selected',
+            'dpiCaMode' => (string)$mdl->dpi->caMode ?: 'restricted',
+            'dpiSites' => array_map('strtolower', self::csv($mdl->dpi->sites)),
+            'dpiExclusions' => array_map('strtolower', self::csv($mdl->dpi->exclusions)),
+            'dpiExcludeDefaults' => (string)$mdl->dpi->excludeDefaults === '1',
         ], $mdl);
     }
 
@@ -114,9 +132,14 @@ class PolicyCompiler
             }
         }
         $g['avHttpsAllowed'] = $g['avEnabled'] && $g['privacyAck'] && !empty($g['avHttpsDomains']);
-        /* the engine fills the proxy redirect table for AI inspection and for AV-selected HTTPS domains */
-        $g['aiInspect'] = $g['aiEnabled'] && $inspect || $g['avHttpsAllowed'];
-        $g['proxyNeeded'] = ($g['aiEnabled'] && $inspect) || $g['avHttpsAllowed'] || ($g['avEnabled'] && $g['avHttp']);
+        /* DPI-SSL: listed sites (engine steers them to the proxy) or every HTTPS connection except the exclusions */
+        $g['dpiAllowed'] = $g['dpiEnabled'] && $g['privacyAck'];
+        $g['dpiAll'] = $g['dpiAllowed'] && $g['dpiScope'] === 'all';
+        $g['dpiSitesActive'] = $g['dpiAllowed'] && !empty($g['dpiSites']);
+        /* the engine fills the proxy redirect table for AI inspection, AV-selected and DPI-selected HTTPS domains */
+        $g['aiInspect'] = $g['aiEnabled'] && $inspect || $g['avHttpsAllowed'] || $g['dpiSitesActive'];
+        $g['proxyNeeded'] = ($g['aiEnabled'] && $inspect) || $g['avHttpsAllowed'] || ($g['avEnabled'] && $g['avHttp']) ||
+            $g['dpiAllowed'];
         return $g;
     }
 
@@ -167,7 +190,7 @@ class PolicyCompiler
      */
     public static function aiPolicies(array $general)
     {
-        if (!$general['aiEnabled'] && !$general['avHttpsAllowed']) {
+        if (!$general['aiEnabled'] && !$general['avHttpsAllowed'] && !$general['dpiSitesActive']) {
             return [];
         }
         $catalog = $general['aiEnabled'] ? self::aiCatalog() : [];
@@ -203,6 +226,17 @@ class PolicyCompiler
             foreach ($general['avHttpsDomains'] as $dom) {
                 $out[] = [
                     'uuid' => 'av-' . $dom, 'name' => 'AV: ' . $dom, 'action' => 'monitor', 'ifids' => [],
+                    'devices' => [], 'sources' => [], 'apps' => [], 'cats' => [], 'hosts' => [$dom], 'dayMask' => 0x7f,
+                    'start' => '00:00', 'end' => '00:00', 'dnsCategories' => [], 'dnsDomains' => [], 'ai' => '',
+                    'inspect' => true, 'quic' => false,
+                ];
+            }
+        }
+        /* DPI-SSL sites chosen by the administrator */
+        if ($general['dpiSitesActive']) {
+            foreach ($general['dpiSites'] as $dom) {
+                $out[] = [
+                    'uuid' => 'dpi-' . $dom, 'name' => 'DPI-SSL: ' . $dom, 'action' => 'monitor', 'ifids' => [],
                     'devices' => [], 'sources' => [], 'apps' => [], 'cats' => [], 'hosts' => [$dom], 'dayMask' => 0x7f,
                     'start' => '00:00', 'end' => '00:00', 'dnsCategories' => [], 'dnsDomains' => [], 'ai' => '',
                     'inspect' => true, 'quic' => false,
@@ -298,6 +332,49 @@ class PolicyCompiler
             ];
         }
         return $result;
+    }
+
+    /**
+     * Settings of the sign-in portal, null when sign-in is off or has no usable interface.
+     * networks lists, per interface, the firewall address and network the portal listens on.
+     */
+    public static function portal(array $general)
+    {
+        $mdl = new Layer7Security();
+        $a = $mdl->auth;
+        if (!$general['enabled'] || (string)$a->enabled !== '1') {
+            return null;
+        }
+        $nets = [];
+        foreach (self::csv($a->interfaces) as $ifid) {
+            $ip = self::address($ifid);
+            $net = self::network($ifid);
+            $dev = self::device($ifid);
+            if ($ip !== null && $net !== null && $dev !== null) {
+                $nets[] = ['ifid' => $ifid, 'device' => $dev, 'ip' => $ip, 'net' => $net];
+            }
+        }
+        if (empty($nets)) {
+            return null;
+        }
+        return [
+            'networks' => $nets, 'port' => (int)(string)$a->portalPort, 'server' => (string)$a->server,
+            'groups' => self::csv($a->groups), 'sessionHours' => (int)(string)$a->sessionHours,
+            'idleMinutes' => (int)(string)$a->idleMinutes, 'bypass' => self::csv($a->bypass),
+            'title' => (string)$a->title, 'message' => (string)$a->message,
+        ];
+    }
+
+    /** policy id => user names, for policies that follow signed-in users */
+    public static function userTables(array $policies)
+    {
+        $out = [];
+        foreach ($policies as $p) {
+            if (!empty($p['users']) && $p['action'] === 'block') {
+                $out[(string)$p['id']] = $p['users'];
+            }
+        }
+        return $out;
     }
 
     /** a user name as used in the session map and the engine (no separators) */
@@ -634,6 +711,11 @@ class PolicyCompiler
         $d = $mdl->dlp;
         $av = $mdl->av;
         return [
+            'dpi' => [
+                'enabled' => $general['dpiAllowed'], 'scope' => $general['dpiScope'], 'caMode' => $general['dpiCaMode'],
+                'sites' => $general['dpiSites'], 'exclusions' => $general['dpiExclusions'],
+                'excludeDefaults' => $general['dpiExcludeDefaults'],
+            ],
             'enabled' => $general['dlpEnabled'],
             'categories' => ['card' => (string)$d->cardAction, 'id' => (string)$d->idAction,
                              'api_key' => (string)$d->keyAction, 'code' => (string)$d->codeAction],

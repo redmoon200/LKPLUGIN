@@ -1,0 +1,60 @@
+<form>
+    <field>
+        <id>layer7security.general.dnsFilter</id>
+        <label>Enable content filtering</label>
+        <type>checkbox</type>
+        <help>Block websites of the categories you select. Devices must use this firewall as their DNS server.</help>
+    </field>
+    <field>
+        <id>layer7security.general.dnsMode</id>
+        <label>Blocked websites answer with</label>
+        <type>dropdown</type>
+        <help>What a device receives when it asks for a blocked website. "Does not exist" is the clearest.</help>
+    </field>
+    <field>
+        <id>layer7security.general.dnsBlock</id>
+        <label>Always block these websites</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>For everyone, in addition to the categories. For wildcards and per-device rules use Protection > Web Control.</help>
+    </field>
+    <field>
+        <id>layer7security.general.dnsAllow</id>
+        <label>Never block these websites</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Exceptions to the categories, for example a news site that is listed as social media.</help>
+    </field>
+    <field>
+        <id>layer7security.cfs.safeSearch</id>
+        <label>Force safe search</label>
+        <type>checkbox</type>
+        <help>Search engines (Google, Bing, DuckDuckGo) hide explicit results.</help>
+    </field>
+    <field>
+        <id>layer7security.cfs.youtube</id>
+        <label>YouTube restricted mode</label>
+        <type>dropdown</type>
+        <help>Hides videos that may be unsuitable.</help>
+    </field>
+    <field>
+        <id>layer7security.cfs.threatIps</id>
+        <label>Block known bad addresses</label>
+        <type>select_multiple</type>
+        <help>Lists of internet addresses used by botnets and attackers, downloaded from the cloud server.</help>
+    </field>
+    <field>
+        <id>layer7security.cfs.threatDirection</id>
+        <label>Direction</label>
+        <type>dropdown</type>
+        <help>"Both directions" also stops attackers on these lists from reaching the firewall.</help>
+    </field>
+    <field>
+        <id>layer7security.general.feedUrl</id>
+        <label>Cloud server address</label>
+        <type>text</type>
+        <help>Where the lists come from, for example http://192.168.1.73:8080/feeds. This one server provides website categories, bad addresses, malware hashes and virus signatures.</help>
+    </field>
+</form>
