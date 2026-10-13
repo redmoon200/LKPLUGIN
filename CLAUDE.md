@@ -19,9 +19,9 @@ Non-goals: cloud-dependent licensing, closed-source components, TLS decryption.
 
 | VMID | Name       | Role                                    | Addr                     | Status  |
 |------|------------|-----------------------------------------|--------------------------|---------|
-| 9101 | opn-l7-fw  | OPNsense 26.1 firewall, plugin under test | WAN 192.168.1.71 (vmbr0) | planned |
-| 9102 | l7-client  | Ubuntu 24.04 client behind OPNsense LAN | mgmt 192.168.1.72        | planned |
-| 9103 | l7-cloud   | Ubuntu 24.04 cloud-style management srv | 192.168.1.73             | planned |
+| 9101 | opn-l7-fw  | OPNsense 26.1.11 firewall, plugin under test | WAN vtnet1 192.168.1.12 (DHCP), LAN vtnet0 10.77.0.1/24 | running |
+| 9102 | l7-client  | Ubuntu 24.04 client behind OPNsense LAN | mgmt 192.168.1.72, LAN 10.77.0.2 | running |
+| 9103 | l7-cloud   | Ubuntu 24.04 cloud-style management srv | 192.168.1.73             | running |
 
   The OPNsense LAN is a private UDP socket NIC between 9101 and 9102 defined in
   each VM's `args:`, so no host bridge or network config is changed.
