@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <ctype.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -249,6 +250,16 @@ flow_decide(flow_t *f)
 {
 	policy_t *p;
 
+	/*
+	 * DNS lookups are never policy targets: blocking the resolver would
+	 * cut the client off. DNS answers are handled by dns_learn() and DNS
+	 * filtering instead.
+	 */
+	if (f->cport == 53 || f->sport == 53 || f->cport == 5353 || f->sport == 5353 ||
+	    strcmp(f->master, "DNS") == 0 || strcmp(f->app, "DNS") == 0) {
+		f->decided = 1;
+		return;
+	}
 	p = policy_find(&f->cli, f->master, f->app, f->cat, f->host);
 	if (p == NULL) {
 		if (f->npkts > 12)
@@ -404,6 +415,151 @@ sweep(int force_all)
 	}
 }
 
+/* ------------------------------------------------------- DNS learning */
+
+static uint64_t dns_learned_total;
+static struct ndpi_flow_struct *scratch_flow;
+
+/* read a (possibly compressed) DNS name at off; returns 0 and sets *next */
+static int
+dns_name(const uint8_t *msg, int len, int off, char *out, size_t outlen, int *next)
+{
+	size_t o = 0;
+	int jumped = 0, hops = 0;
+
+	*next = -1;
+	for (;;) {
+		int l;
+
+		if (off < 0 || off >= len || hops++ > 32)
+			return -1;
+		l = msg[off];
+		if (l == 0) {
+			if (!jumped)
+				*next = off + 1;
+			break;
+		}
+		if ((l & 0xc0) == 0xc0) {
+			if (off + 1 >= len)
+				return -1;
+			if (!jumped)
+				*next = off + 2;
+			jumped = 1;
+			off = ((l & 0x3f) << 8) | msg[off + 1];
+			continue;
+		}
+		if ((l & 0xc0) != 0 || off + 1 + l > len)
+			return -1;
+		if (o + (size_t)l + 2 > outlen)
+			return -1;
+		if (o)
+			out[o++] = '.';
+		memcpy(out + o, msg + off + 1, (size_t)l);
+		o += (size_t)l;
+		off += 1 + l;
+	}
+	out[o] = '\0';
+	return 0;
+}
+
+/*
+ * A DNS answer to a client: classify the queried name with nDPI and, when a
+ * block policy matches, put every returned address into the policy's pf table
+ * before the client connects. This closes the "first connection" gap that
+ * flow-based blocking has and covers round-robin address sets.
+ */
+static void
+dns_learn(const uint8_t *msg, int len, const addr_t *client)
+{
+	char name[256];
+	addr_t addrs[24];
+	int naddr = 0, qd, an, off = 12, next, i;
+	uint16_t flags, app = 0;
+	policy_t *p;
+	ndpi_protocol_match_result res;
+	const char *appname = "", *catname = "";
+	ndpi_protocol pr;
+
+	if (len < 12 || npolicies_block() == 0)
+		return;
+	flags = (uint16_t)((msg[2] << 8) | msg[3]);
+	if (!(flags & 0x8000) || (flags & 0x000f) != 0)
+		return;
+	qd = (msg[4] << 8) | msg[5];
+	an = (msg[6] << 8) | msg[7];
+	if (qd < 1 || an < 1)
+		return;
+	if (dns_name(msg, len, off, name, sizeof(name), &next) != 0)
+		return;
+	off = next + 4;
+	for (i = 1; i < qd; i++) {	/* skip extra questions */
+		char tmp[256];
+
+		if (dns_name(msg, len, off, tmp, sizeof(tmp), &next) != 0)
+			return;
+		off = next + 4;
+	}
+	for (i = 0; i < an && naddr < 24; i++) {
+		char tmp[256];
+		int type, rdlen;
+
+		if (dns_name(msg, len, off, tmp, sizeof(tmp), &next) != 0 || next + 10 > len)
+			return;
+		type = (msg[next] << 8) | msg[next + 1];
+		rdlen = (msg[next + 8] << 8) | msg[next + 9];
+		off = next + 10;
+		if (off + rdlen > len)
+			return;
+		if (type == 1 && rdlen == 4) {
+			memset(&addrs[naddr], 0, sizeof(addrs[naddr]));
+			addrs[naddr].af = AF_INET;
+			memcpy(addrs[naddr].a, msg + off, 4);
+			naddr++;
+		} else if (type == 28 && rdlen == 16) {
+			memset(&addrs[naddr], 0, sizeof(addrs[naddr]));
+			addrs[naddr].af = AF_INET6;
+			memcpy(addrs[naddr].a, msg + off, 16);
+			naddr++;
+		}
+		off += rdlen;
+	}
+	if (naddr == 0)
+		return;
+	for (i = 0; name[i]; i++)
+		name[i] = (char)tolower((unsigned char)name[i]);
+
+	if (scratch_flow == NULL) {
+		scratch_flow = ndpi_flow_malloc(SIZEOF_FLOW_STRUCT);
+		if (scratch_flow == NULL)
+			return;
+	}
+	memset(scratch_flow, 0, SIZEOF_FLOW_STRUCT);
+	memset(&res, 0, sizeof(res));
+	app = ndpi_match_host_subprotocol(mod, scratch_flow, name, (u_int)strlen(name), &res,
+	    NDPI_PROTOCOL_TLS, 0);
+	if (app != NDPI_PROTOCOL_UNKNOWN) {
+		memset(&pr, 0, sizeof(pr));
+		pr.proto.app_protocol = app;
+		appname = ndpi_get_proto_name(mod, app);
+		catname = ndpi_category_get_name(mod, ndpi_get_proto_category(mod, pr));
+	}
+	p = policy_find(client, NULL, appname, catname, name);
+	if (p != NULL && p->action == ACT_BLOCK) {
+		int n = pf_block_addrs(&cfg, p, client, addrs, naddr);
+
+		if (n > 0) {
+			char c[64], detail[96];
+
+			addr_str(client, c, sizeof(c));
+			snprintf(detail, sizeof(detail), "dns-learn %d addr -> %s", n, p->table);
+			store_event("block", c, "", appname, catname, name, p->name, detail);
+			dns_learned_total += (uint64_t)n;
+			l7_log("DNS-LEARN %s asked %s (app=%s cat=%s) -> %d address(es) to %s", c, name,
+			    *appname ? appname : "-", *catname ? catname : "-", n, p->table);
+		}
+	}
+}
+
 /* ------------------------------------------------------------ packets */
 
 static void
@@ -488,6 +644,9 @@ handle_l3(const uint8_t *l3, int len, uint64_t ts_ms, const char *iface)
 		return;
 	}
 
+	if (proto == IPPROTO_UDP && pa == 53 && len > hl + 8 + 12)
+		dns_learn(l4 + 8, len - hl - 8, &b);
+
 	f = flow_get(&a, pa, &b, pb, proto, &dir, iface, ts_ms);
 	if (f == NULL)
 		return;
@@ -547,10 +706,11 @@ write_status(void)
 		return;
 	fprintf(f, "{\"version\":\"%s\",\"pid\":%d,\"started\":%ld,\"ts\":%ld,"
 	    "\"packets\":%llu,\"bytes\":%llu,\"flows_active\":%zu,\"flows_total\":%llu,"
-	    "\"classified\":%llu,\"blocks\":%llu,\"db_rows\":%llu,\"policies\":%d,\"ifaces\":[",
+	    "\"classified\":%llu,\"dns_learned\":%llu,\"blocks\":%llu,\"db_rows\":%llu,\"policies\":%d,\"ifaces\":[",
 	    L7_VERSION, (int)getpid(), (long)started, (long)now, (unsigned long long)pkts_total,
 	    (unsigned long long)bytes_total, nflows, (unsigned long long)flows_total,
-	    (unsigned long long)classified_total, (unsigned long long)pf_blocks_total(),
+	    (unsigned long long)classified_total, (unsigned long long)dns_learned_total,
+	    (unsigned long long)pf_blocks_total(),
 	    (unsigned long long)store_rows(), policy_count());
 	for (i = 0; i < cfg.niface; i++) {
 		struct pcap_stat ps;

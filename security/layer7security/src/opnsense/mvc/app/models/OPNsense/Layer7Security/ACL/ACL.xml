@@ -1,0 +1,9 @@
+<acl>
+    <page-services-layer7security>
+        <name>Services: Layer 7 Security</name>
+        <patterns>
+            <pattern>ui/layer7security/*</pattern>
+            <pattern>api/layer7security/*</pattern>
+        </patterns>
+    </page-services-layer7security>
+</acl>

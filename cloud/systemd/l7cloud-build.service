@@ -1,0 +1,15 @@
+[Unit]
+Description=os-layer7security feed list build
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=l7cloud
+Group=l7cloud
+ExecStart=/usr/bin/python3 /opt/l7cloud/server/build_feeds.py --data /opt/l7cloud/data
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/l7cloud

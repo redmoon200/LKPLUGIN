@@ -1,0 +1,18 @@
+[Unit]
+Description=os-layer7security feed server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=l7cloud
+Group=l7cloud
+ExecStart=/usr/bin/python3 /opt/l7cloud/server/feedserver.py --port 8080 --root /var/lib/l7cloud/feeds
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/var/lib/l7cloud
+
+[Install]
+WantedBy=multi-user.target

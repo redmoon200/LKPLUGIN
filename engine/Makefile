@@ -23,7 +23,15 @@ ${PROG}: ${OBJS}
 .c.o:
 	${CC} ${CFLAGS} -c -o $@ $<
 
-clean:
-	rm -f ${PROG} ${OBJS}
+# Robustness test: parsers under AddressSanitizer + UBSan with mutated packets
+fuzz: tests/fuzz.c src/main.c src/config.c src/store.c src/policy.c src/l7.h
+	${CC} -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer ${CFLAGS} ${LDFLAGS} 		-o fuzz tests/fuzz.c src/config.c src/store.c src/policy.c ${LIBS}
 
-.PHONY: all clean
+check: fuzz
+	./fuzz 300000 1
+	./fuzz 300000 2
+
+clean:
+	rm -f ${PROG} ${OBJS} fuzz
+
+.PHONY: all clean fuzz check

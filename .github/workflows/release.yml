@@ -1,0 +1,29 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Source bundle
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          git archive --format=tar.gz --prefix="os-layer7security-${v}/" \
+            -o "os-layer7security-${v}-src.tar.gz" HEAD security engine cloud docs LICENSE README.md
+          sha256sum "os-layer7security-${v}-src.tar.gz" > "os-layer7security-${v}-src.tar.gz.sha256"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            os-layer7security-*-src.tar.gz
+            os-layer7security-*-src.tar.gz.sha256
+          generate_release_notes: true
