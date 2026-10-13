@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# remove generated configuration; flows in /var/db/layer7security are kept
+rm -f /etc/rc.conf.d/layer7security
+rm -rf /usr/local/etc/layer7security
+if [ -f /usr/local/etc/unbound.opnsense.d/layer7security.conf ]; then
+	rm -f /usr/local/etc/unbound.opnsense.d/layer7security.conf
+	/usr/local/sbin/configctl unbound restart >/dev/null 2>&1 || :
+fi
+/usr/local/sbin/configctl filter reload >/dev/null 2>&1 || :

@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# stop the engine first; it flushes its pf tables on exit
+/usr/local/etc/rc.d/layer7security onestop >/dev/null 2>&1 || :

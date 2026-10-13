@@ -103,6 +103,31 @@ add_policy "{\"policy\":{\"enabled\":\"1\",\"name\":\"t-on\",\"sequence\":\"10\"
 apply
 check "inside the window github.com is blocked ($on_s-$on_e, now $now)" blocked https://github.com
 
+echo "== per-VLAN policy (needs the lab VLAN: lab/make-vlan.php + client ens4.10)"
+if [ "$(cli 'ip -br a show ens4.10 2>/dev/null | wc -l' | tr -d '')" = "1" ]; then
+	clear_policies
+	api POST /api/layer7security/settings/set '{"layer7security":{"general":{"interfaces":"lan,opt1"}}}' >/dev/null
+	add_policy "{\"policy\":{\"enabled\":\"1\",\"name\":\"t-vlan\",\"sequence\":\"10\",\"action\":\"block\",\"interfaces\":\"opt1\",\"applications\":\"YouTube\",$ALLDAYS}}"
+	apply
+	T0=$(opn 'date +%s' | tr -d '')
+	vlan_blocked() { for _i in 1 2 3; do [ "$(cli "curl -sS -o /dev/null -m 6 --interface 10.88.0.2 -w '%{http_code}' https://www.youtube.com 2>/dev/null")" = 200 ] && return 1; done; return 0; }
+	lan_open() { [ "$(cli "curl -sS -o /dev/null -m 8 --interface 10.77.0.2 -w '%{http_code}' https://www.youtube.com 2>/dev/null")" = 200 ]; }
+	vlan_control() { [ "$(cli "curl -sS -o /dev/null -m 8 --interface 10.88.0.2 -w '%{http_code}' https://www.wikipedia.org 2>/dev/null")" = 200 ]; }
+	check "YouTube blocked for VLAN 10 clients" vlan_blocked
+	check "YouTube still open for the LAN" lan_open
+	check "VLAN 10 control site reachable" vlan_control
+	T0=$(opn 'date +%s' | tr -d '')
+	vlan_flows() { api POST /api/layer7security/flows/search '{"current":1,"rowCount":100,"searchPhrase":"10.88.0.2","period":300}' | python -c "
+import json,sys
+t0=int(sys.argv[1]); d=json.load(sys.stdin)
+rows=[r for r in d['rows'] if r['ts_start']>=t0]
+sys.exit(0 if rows and all(r['iface']=='vlan0.10' for r in rows) else 1)" "$T0"; }
+	check "VLAN flows are recorded on vlan0.10 only (no double counting)" vlan_flows
+	api POST /api/layer7security/settings/set '{"layer7security":{"general":{"interfaces":"lan"}}}' >/dev/null
+else
+	echo "  SKIP no VLAN on the client"
+fi
+
 echo "== DNS filtering, global and per group"
 clear_policies
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"dnsFilter":"1","dnsMode":"nxdomain","dnsCategories":"ads","dnsBlock":"blocked-test.example","dnsAllow":""}}}' >/dev/null
