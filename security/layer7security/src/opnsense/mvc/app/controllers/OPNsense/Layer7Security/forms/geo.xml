@@ -1,0 +1,15 @@
+<form>
+    <field>
+        <id>layer7security.general.geoEnabled</id>
+        <label>Enable GeoIP filtering</label>
+        <type>checkbox</type>
+        <help>Apply the GeoIP policies below. The country database is downloaded with "Update database" and refreshed weekly.</help>
+    </field>
+    <field>
+        <id>layer7security.general.geoSource</id>
+        <label>Database source URL</label>
+        <type>text</type>
+        <advanced>true</advanced>
+        <help>Base URL that serves ip2country-v4.tsv.gz and ip2country-v6.tsv.gz (for example your cloud feed server). Empty uses iptoasn.com (public domain data).</help>
+    </field>
+</form>

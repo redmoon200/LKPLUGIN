@@ -17,7 +17,7 @@ from playwright.sync_api import sync_playwright
 HOST = os.environ.get('OPN_HOST', '192.168.1.12')
 USER = os.environ.get('OPN_UI_USER', 'root')
 PASS = os.environ.get('OPN_UI_PASS', 'opnsense')
-PAGES = ['dashboard', 'flows', 'policies', 'users', 'dns', 'settings']
+PAGES = ['dashboard', 'flows', 'policies', 'users', 'dns', 'macbinding', 'geoip', 'settings']
 
 
 def main():

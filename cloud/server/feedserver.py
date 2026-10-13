@@ -20,7 +20,7 @@ import socketserver
 import time
 
 CATEGORIES = ('ads', 'trackers', 'malware', 'phishing', 'adult', 'gambling', 'social', 'streaming', 'games')
-NAME = re.compile(r'^/feeds/(?:(%s)\.txt|manifest\.json)$' % '|'.join(CATEGORIES))
+NAME = re.compile(r'^/feeds/(?:(?:' + '|'.join(CATEGORIES) + r')\.txt|manifest\.json|ip2country-v[46]\.tsv\.gz)$')
 STARTED = int(time.time())
 
 
@@ -62,7 +62,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.headers.get('If-None-Match') == etag:
             self._send(304, b'', extra={'ETag': etag})
             return
-        ctype = 'application/json' if path.endswith('.json') else 'text/plain; charset=utf-8'
+        ctype = ('application/json' if path.endswith('.json') else
+                 'application/gzip' if path.endswith('.gz') else 'text/plain; charset=utf-8')
         self._send(200, data, ctype, {'ETag': etag, 'Cache-Control': 'max-age=300'})
 
     def log_message(self, fmt, *args):

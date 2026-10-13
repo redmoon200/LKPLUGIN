@@ -1,0 +1,36 @@
+<form>
+    <field>
+        <id>binding.enabled</id>
+        <label>Enabled</label>
+        <type>checkbox</type>
+    </field>
+    <field>
+        <id>binding.name</id>
+        <label>Name</label>
+        <type>text</type>
+        <help>A device name shown in reports and alerts.</help>
+    </field>
+    <field>
+        <id>binding.mac</id>
+        <label>MAC address</label>
+        <type>text</type>
+        <help>For example 52:54:00:12:34:56.</help>
+    </field>
+    <field>
+        <id>binding.ip</id>
+        <label>IPv4 address</label>
+        <type>text</type>
+        <help>The address this MAC must use. Leave empty to only allow-list the MAC (relevant in strict mode; the device may then use any unbound address).</help>
+    </field>
+    <field>
+        <id>binding.interface</id>
+        <label>Interface</label>
+        <type>dropdown</type>
+        <help>Limit the binding to one interface. Empty means every enforced interface.</help>
+    </field>
+    <field>
+        <id>binding.description</id>
+        <label>Description</label>
+        <type>text</type>
+    </field>
+</form>

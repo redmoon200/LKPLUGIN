@@ -26,6 +26,7 @@ jobs:
         run: |
           python3 -m py_compile security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/stats.py \
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/feed_update.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/geo.py \
             cloud/server/build_feeds.py cloud/server/feedserver.py
 
       - name: XML well-formed
@@ -46,6 +47,27 @@ jobs:
           import build_feeds as b
           got = b.parse("# c\n0.0.0.0 ads.example.com\n127.0.0.1 localhost\nplain.example.org\n1.2.3.4 other.example\n")
           assert got == {'ads.example.com', 'plain.example.org'}, got
+          print('ok')
+          EOF
+
+      - name: GeoIP range arithmetic self-test
+        run: |
+          python3 - <<'EOF'
+          import sys
+          sys.path.insert(0, 'security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security')
+          import geo
+          # subtract a hole from a range, merge neighbours, convert to CIDRs
+          assert geo.subtract([(0, 255)], [(10, 19)]) == [(0, 9), (20, 255)]
+          assert geo.subtract([(0, 255)], [(0, 255)]) == []
+          assert geo.merge([(5, 9), (0, 4), (20, 30)]) == [(0, 9), (20, 30)]
+          assert list(geo.to_cidrs([(0, 255)], False)) == ['0.0.0.0/24']
+          r4, r6 = geo.net_ranges(['10.0.0.0/8', 'fc00::/7', 'bogus'])
+          assert r4 == [(167772160, 184549375)] and len(r6) == 1
+          text = chr(10).join([chr(9).join(['1.0.0.0', '1.0.0.255', 'US']),
+                               chr(9).join(['1.0.1.0', '1.0.3.255', 'None']),
+                               chr(9).join(['9.9.9.9', '9.9.9.1', 'DE'])])
+          rows = geo.normalise(text, False)
+          assert rows == [(16777216, 16777471, 'US')], rows
           print('ok')
           EOF
 

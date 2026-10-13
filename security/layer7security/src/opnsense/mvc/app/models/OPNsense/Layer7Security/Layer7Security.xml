@@ -1,6 +1,6 @@
 <model>
     <mount>//OPNsense/layer7security</mount>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <description>Layer 7 Security: application visibility, policies and DNS filtering</description>
     <items>
         <general>
@@ -83,7 +83,110 @@
                 <Mask>/^https?:\/\/[A-Za-z0-9.:\/_-]{1,200}$/</Mask>
                 <ValidationMessage>Enter an http(s) URL without spaces, for example http://192.168.1.73:8080/feeds</ValidationMessage>
             </feedUrl>
+            <macMode type="OptionField">
+                <Default>off</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Off</off>
+                    <protect>Protect bound addresses (an IP may only be used by its MAC)</protect>
+                    <strict>Strict (additionally block every unknown device)</strict>
+                </OptionValues>
+            </macMode>
+            <macInterfaces type="InterfaceField">
+                <Required>N</Required>
+                <multiple>Y</multiple>
+                <AllowDynamic>Y</AllowDynamic>
+            </macInterfaces>
+            <macStaticArp type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </macStaticArp>
+            <geoEnabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </geoEnabled>
+            <geoSource type="TextField">
+                <Required>N</Required>
+                <Mask>/^https?:\/\/[A-Za-z0-9.:\/_-]{1,200}$/</Mask>
+                <ValidationMessage>Enter an http(s) base URL that serves ip2country-v4.tsv.gz and ip2country-v6.tsv.gz, or leave empty for iptoasn.com.</ValidationMessage>
+            </geoSource>
         </general>
+        <bindings>
+            <binding type="ArrayField">
+                <enabled type="BooleanField">
+                    <Default>1</Default>
+                    <Required>Y</Required>
+                </enabled>
+                <name type="TextField">
+                    <Required>Y</Required>
+                    <Mask>/^[A-Za-z0-9_.@ -]{1,64}$/</Mask>
+                    <ValidationMessage>Use 1-64 letters, digits, space, dot, dash, underscore or @.</ValidationMessage>
+                </name>
+                <mac type="MacAddressField">
+                    <Required>Y</Required>
+                </mac>
+                <ip type="TextField">
+                    <Required>N</Required>
+                    <Mask>/^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$/</Mask>
+                    <ValidationMessage>Enter one IPv4 address, or leave empty to bind the MAC only.</ValidationMessage>
+                </ip>
+                <interface type="InterfaceField">
+                    <Required>N</Required>
+                    <AllowDynamic>Y</AllowDynamic>
+                </interface>
+                <description type="DescriptionField"/>
+            </binding>
+        </bindings>
+        <geo>
+            <policy type="ArrayField">
+                <enabled type="BooleanField">
+                    <Default>1</Default>
+                    <Required>Y</Required>
+                </enabled>
+                <name type="TextField">
+                    <Required>Y</Required>
+                    <Mask>/^[A-Za-z0-9_.@ -]{1,64}$/</Mask>
+                    <ValidationMessage>Use 1-64 letters, digits, space, dot, dash, underscore or @.</ValidationMessage>
+                </name>
+                <action type="OptionField">
+                    <Default>block</Default>
+                    <Required>Y</Required>
+                    <OptionValues>
+                        <block>Block the selected countries</block>
+                        <allow>Allow only the selected countries</allow>
+                    </OptionValues>
+                </action>
+                <direction type="OptionField">
+                    <Default>in</Default>
+                    <Required>Y</Required>
+                    <OptionValues>
+                        <in>Inbound (traffic coming from the country)</in>
+                        <out>Outbound (traffic going to the country)</out>
+                        <both>Both directions</both>
+                    </OptionValues>
+                </direction>
+                <interfaces type="InterfaceField">
+                    <Required>N</Required>
+                    <multiple>Y</multiple>
+                    <AllowDynamic>Y</AllowDynamic>
+                </interfaces>
+                <countries type="CountryField">
+                    <Required>Y</Required>
+                    <multiple>Y</multiple>
+                </countries>
+                <exceptions type="NetworkField">
+                    <Required>N</Required>
+                    <asList>Y</asList>
+                    <WildcardEnabled>N</WildcardEnabled>
+                    <ValidationMessage>Enter IP addresses or networks (CIDR), separated by commas.</ValidationMessage>
+                </exceptions>
+                <log type="BooleanField">
+                    <Default>0</Default>
+                    <Required>Y</Required>
+                </log>
+                <description type="DescriptionField"/>
+            </policy>
+        </geo>
         <users>
             <user type="ArrayField">
                 <name type="TextField">

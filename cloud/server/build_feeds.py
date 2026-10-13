@@ -86,6 +86,20 @@ def main():
         chosen = sorted(domains)[:args.max]
         write(os.path.join(args.out, cat + '.txt'), chosen)
         manifest['categories'][cat] = {'domains': len(chosen), 'sources': used}
+    # GeoIP country database mirror (public domain, iptoasn.com): served as-is
+    for name in ('ip2country-v4.tsv.gz', 'ip2country-v6.tsv.gz'):
+        try:
+            req = urllib.request.Request('https://iptoasn.com/data/' + name, headers={'User-Agent': 'l7cloud-feed-builder'})
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                raw = resp.read(64 * 1024 * 1024)
+            if len(raw) > 100000 and raw[:2] == bytes([0x1f, 0x8b]):
+                with open(os.path.join(args.out, name + '.tmp'), 'wb') as f:
+                    f.write(raw)
+                os.replace(os.path.join(args.out, name + '.tmp'), os.path.join(args.out, name))
+                manifest.setdefault('geoip', {})[name] = len(raw)
+        except Exception as exc:
+            failed += 1
+            manifest.setdefault('geoip_errors', []).append('%s: %s' % (name, str(exc)[:80]))
     # curated lists shipped with the project
     if os.path.isdir(args.data):
         for name in sorted(os.listdir(args.data)):

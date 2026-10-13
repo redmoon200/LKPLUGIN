@@ -55,6 +55,30 @@ was trusted.
   feed-parser self-test) and a FreeBSD 14.3 job that builds the engine against
   the repo's nDPI 6 and runs the fuzz check: green.
 
+## v0.2.0: MAC binding and GeoIP (2026-10-13)
+- **MAC binding**: pf ether rules in anchor `l7sec_ether` (the ruleset reference is
+  emitted through a table declaration, the only hook that lands before scrub/NAT).
+  Verified in the lab: right MAC works, wrong MAC on a bound IP is dropped, an
+  unbound IP is untouched in *protect*, an unknown device is dropped in *strict*,
+  a MAC-only binding lets a device on but cannot take over a bound IP, static ARP
+  entries are created and removed with the binding, mode *off* empties the anchor.
+  The engine discovers devices (ARP + IPv4 inside monitored networks), classifies
+  them bound / spoof / unbound and raises `mac-spoof` events; the GUI binds a
+  discovered device with one click.
+- **GeoIP**: iptoasn.com database (457k IPv4 / 120k IPv6 ranges, 14 s to build; also
+  served by the cloud mirror) turned into per-policy pf tables. Verified: block
+  Germany outbound (14,354 prefixes) drops German hosts only; allow-only France
+  with an exception passes France and the excepted host, drops Germany and the US,
+  keeps DNS/firewall reachable (private ranges); rule counters report drops; flows
+  and the dashboard carry the server country.
+- **Tests**: e2e grew from 25 to 50 checks; `tests/ui_crud2.py` covers the new
+  dialogs (GeoIP policy, binding, invalid MAC rejected, one-click Bind); fuzz now
+  also feeds mutated Ethernet/ARP/VLAN frames through `on_packet`
+  (2 million frames on the lab, clean).
+- **Package**: `os-layer7security-0.2.0.pkg`, installed over 0.1.0 (upgrade) and
+  again after wiping every plugin file (package-only). On that install the full
+  suite passed 50/50 in two consecutive runs, plus the render, dialog and fuzz tests.
+
 ## Bugs found and fixed while testing
 - Host-matching policies matched the DNS flow itself and put the resolver in the
   block table (cut DNS). DNS flows are no longer policy targets.
@@ -84,6 +108,8 @@ was trusted.
 | `qm monitor 9101` screendump, QMP `sendkey` via `/var/tmp/lk-lab/type.py` | drive the VGA console during first configuration |
 | `qm snapshot 9101 phase6-before`, `qm snapshot 9102 phase6-before` | before phase 6 |
 
+No new `qm` commands were needed for 0.2.0 (no VM was created, resized or snapshotted).
+
 ## Rollbacks
 - **9101 rebuilt.** Cause: I imported the OPNsense `serial` image, which is install
   media that runs in live mode (config not persistent). Destroyed and recreated
@@ -104,6 +130,8 @@ was trusted.
 - No TLS decryption; encrypted traffic is classified from handshake metadata
   (ECH/VPN traffic may show as TLS/VPN). Blocking is per address and DNS name.
 - Capture is libpcap/BPF; netmap for very high line rates is a documented option.
+- MAC binding covers IPv4 only (ARP and IPv6 are not filtered by the ether rules).
+- GeoIP data is registry based; CDN and VPN addresses can map to another country.
 - Not yet done: OPNsense 26.7 port, libFuzzer corpus in CI, dashboard widget for
   the OPNsense lobby, signed package repository (the `.pkg` is installed with
   `pkg add`), Zenarmor-style reports/exports.

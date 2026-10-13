@@ -30,6 +30,39 @@ The package depends on `ndpi` and `sqlite3` from the OPNsense repository. Open
 Policies are evaluated in ascending *Sequence*; the first match wins, so put
 `Allow` exemptions first.
 
+## MAC binding
+
+**Services > Layer 7 Security > MAC Binding**
+
+1. Open *Discovered devices* (the engine must be running). Press *Bind* next to
+   a device to bind the IP and MAC it uses now, or add bindings by hand. Leave
+   the IP empty to allow-list a MAC only.
+2. On the *Mode* tab choose **Protect** (a bound IP can only be used by its MAC)
+   or **Strict** (additionally drops IPv4 from every device that is not bound),
+   pick the enforced interfaces (LAN or VLAN) and press *Apply*.
+
+Add every device you rely on **before** switching to Strict mode; a device that
+is not bound (and not allow-listed by MAC) loses IPv4 connectivity on that
+interface. Management access over another interface is not affected. Spoof
+attempts show up as `mac-spoof` events and as *SPOOF* in the device list.
+
+## GeoIP filtering
+
+**Services > Layer 7 Security > GeoIP**
+
+1. Tick *Enable GeoIP filtering*, press *Update database* once (refreshed weekly
+   afterwards).
+2. Add a policy: **Block** the selected countries or **Allow only** them,
+   *Inbound* (traffic coming from the country, use the WAN interface),
+   *Outbound* (your clients going to the country, use LAN/VLAN interfaces) or
+   both, plus optional exceptions (addresses that are never affected).
+3. Press *Apply*. The table below the policies shows entries and dropped
+   packets per policy; the dashboard and flows page show the country of every
+   flow.
+
+*Allow only* never blocks private networks, so the firewall and local DNS stay
+reachable. Country data is an approximation; use it as a coarse filter.
+
 ## What each page shows
 
 - **Dashboard**: flows, clients, applications, volume, blocked flows; traffic

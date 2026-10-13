@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#define L7_VERSION "0.1.0"
+#define L7_VERSION "0.2.0"
 #define L7_MAX_IFACES 8
 #define L7_MAX_POLICIES 128
 #define L7_MAX_LIST 64
@@ -65,6 +65,10 @@ typedef struct {
 	int max_flows;
 	int enforce;		/* 0 = never touch pf */
 	int debug;
+	char bindings_path[256];
+	char geo_dir[256];
+	int nnet;		/* networks of the monitored interfaces (device discovery) */
+	cidr_t nets[16];
 } config_t;
 
 /* config.c */
@@ -73,6 +77,7 @@ int policies_load(const char *path, policy_t *p, int max);
 int addr_parse(const char *s, addr_t *a);
 void addr_str(const addr_t *a, char *buf, size_t len);
 int cidr_match(const cidr_t *c, const addr_t *a);
+int cidr_parse(const char *s, cidr_t *c);
 
 /* store.c */
 int store_open(const char *path);
@@ -80,7 +85,8 @@ void store_close(void);
 void store_tick(int force_commit);
 uint64_t store_flow_insert(const char *iface, int l4, const char *cli, const char *srv,
     int cport, int sport, const char *master, const char *app, const char *cat,
-    const char *host, time_t t0, const char *action, const char *policy);
+    const char *host, time_t t0, const char *action, const char *policy, const char *country);
+int store_device(const char *ip, const char *mac, const char *iface, time_t now, uint32_t hits);
 void store_flow_update(uint64_t id, time_t t1, uint64_t bu, uint64_t bd, uint64_t pu,
     uint64_t pd, const char *master, const char *app, const char *cat, const char *host,
     const char *action, const char *policy);
@@ -103,6 +109,19 @@ void pf_expire_all(const config_t *c);
 void policy_sweep_schedules(const config_t *c);
 void pf_flush_all(const config_t *c);
 uint64_t pf_blocks_total(void);
+
+/* geo.c */
+int geo_load(const char *dir);
+const char *geo_lookup(const addr_t *a);
+size_t geo_ranges(void);
+
+/* dev.c */
+void mac_str(const uint8_t *m, char *buf, size_t len);
+void dev_init_own(void);
+int dev_load_bindings(const char *path);
+void dev_seen(const config_t *c, const uint8_t *mac6, const addr_t *ip, const char *iface, int via_arp);
+uint64_t dev_spoofs(void);
+uint64_t dev_new(void);
 
 /* log */
 void l7_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));

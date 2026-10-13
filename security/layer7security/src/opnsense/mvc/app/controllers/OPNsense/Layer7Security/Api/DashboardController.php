@@ -56,6 +56,16 @@ class DashboardController extends ApiControllerBase
         return $this->query('blocks');
     }
 
+    public function countriesAction()
+    {
+        return $this->query('countries');
+    }
+
+    public function devicesAction()
+    {
+        return $this->query('devices');
+    }
+
     public function engineAction()
     {
         $data = json_decode(trim((new Backend())->configdRun('layer7security engine-status')), true);

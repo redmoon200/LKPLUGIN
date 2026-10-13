@@ -15,4 +15,6 @@ systemctl daemon-reload
 # first build before serving, then keep rebuilding daily
 sudo -u l7cloud python3 /opt/l7cloud/server/build_feeds.py --data /opt/l7cloud/data
 systemctl enable --now l7cloud-feed.service l7cloud-build.timer
+# an upgrade must not leave the old code running
+systemctl restart l7cloud-feed.service
 echo "l7cloud installed: http://$(hostname -I | awk '{print $1}'):8080/feeds/manifest.json"

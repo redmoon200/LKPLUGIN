@@ -56,6 +56,48 @@ def summary(con, since):
     return out
 
 
+BINDINGS = '/usr/local/etc/layer7security/bindings.conf'
+
+
+def load_bindings():
+    """mac, ip ('' = any), device, name per line, written by apply.php"""
+    out = []
+    try:
+        with open(BINDINGS) as f:
+            for line in f:
+                line = line.rstrip('\r\n')
+                if not line or line.startswith('#'):
+                    continue
+                parts = line.split('\t')
+                if len(parts) >= 4:
+                    out.append({'mac': parts[0].lower(), 'ip': '' if parts[1] == '-' else parts[1],
+                                'device': '' if parts[2] == '-' else parts[2], 'name': parts[3]})
+    except OSError:
+        pass
+    return out
+
+
+def devices(con, period):
+    """discovered devices annotated with their binding state"""
+    binds = load_bindings()
+    since = int(time.time()) - period
+    out = rows(con, "SELECT ip, mac, iface, first_seen, last_seen, hits FROM devices WHERE last_seen >= ?"
+                    " ORDER BY last_seen DESC LIMIT 500", (since,))
+    for d in out:
+        d['state'] = 'unbound'
+        d['bound_name'] = ''
+        for b in binds:
+            same_ip = b['ip'] != '' and b['ip'] == d['ip']
+            if same_ip and b['mac'] == d['mac']:
+                d['state'], d['bound_name'] = 'bound', b['name']
+                break
+            if same_ip:
+                d['state'], d['bound_name'] = 'spoof', b['name']
+            elif b['ip'] == '' and b['mac'] == d['mac'] and d['state'] == 'unbound':
+                d['state'], d['bound_name'] = 'mac-bound', b['name']
+    return {'rows': out}
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else ''
     if cmd == 'engine':
@@ -97,7 +139,7 @@ def main():
         cond = ' AND '.join(where)
         total = con.execute('SELECT COUNT(*) FROM flows WHERE ' + cond, args).fetchone()[0]
         data = rows(con, 'SELECT id, ts_start, ts_end, iface, l4, client, server, cport, sport, master, app,'
-                         ' category, host, bytes_up, bytes_down, action, policy FROM flows WHERE ' + cond +
+                         ' category, host, bytes_up, bytes_down, action, policy, country FROM flows WHERE ' + cond +
                     ' ORDER BY ts_end DESC LIMIT ? OFFSET ?', args + [limit, offset])
         print(json.dumps({'rows': data, 'total': total}))
         return
@@ -108,7 +150,13 @@ def main():
     if con is None:
         print(json.dumps({'error': 'no database yet'}))
         return
-    if cmd == 'summary':
+    if cmd == 'devices':
+        out = devices(con, max(period, 3600))
+    elif cmd == 'countries':
+        out = {'rows': rows(con, "SELECT country, COUNT(*) AS flows, SUM(bytes_up+bytes_down) AS bytes"
+                                 " FROM flows WHERE ts_end >= ? AND country IS NOT NULL AND country != ''"
+                                 " GROUP BY country ORDER BY bytes DESC LIMIT 15", (since,))}
+    elif cmd == 'summary':
         out = summary(con, since)
     elif cmd == 'apps':
         out = {'rows': rows(con, "SELECT app, category, COUNT(*) AS flows, SUM(bytes_up+bytes_down) AS bytes"

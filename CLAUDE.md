@@ -39,9 +39,9 @@ security/layer7security/      plugin, opnsense/plugins layout
   src/etc/rc.d/layer7security                    daemon(8) supervised engine
   src/opnsense/mvc/app/{controllers,models,views,library}/OPNsense/Layer7Security/
   src/opnsense/service/conf/actions.d/actions_layer7security.conf
-  src/opnsense/scripts/OPNsense/Layer7Security/  apply.php stats.py feed_update.py catalog.sh
+  src/opnsense/scripts/OPNsense/Layer7Security/  apply.php stats.py feed_update.py geo.py catalog.sh
   src/share/layer7security/seeds/                small DNS category seed lists
-engine/                       l7engine (C): libpcap + nDPI + SQLite + pf ioctl
+engine/                       l7engine (C): libpcap + nDPI + SQLite + pf ioctl, geo.c, dev.c
 cloud/                        feed builder/server for the DNS filter lists
 lab/                          Proxmox + deploy scripts
 tests/e2e.sh                  end-to-end test over the REST API
@@ -58,7 +58,8 @@ docs/                         ARCHITECTURE, USER-GUIDE, ENGINE-COMPARISON, PROGR
   `configctl layer7security start|stop|restart|status`.
 - API check (lab): `. lab/env.sh; api GET /api/layer7security/service/status`.
 - pf check: `pfctl -t l7_blk_1 -T show`, `pfctl -sr | grep l7_blk`.
-- End-to-end: `sh tests/e2e.sh` (needs lab/env.sh, API key, client VM).
+- End-to-end: `sh tests/e2e.sh` (50 checks; needs lab/env.sh, API key, client VM with a
+  VLAN, internet). MAC tests use `lab/spoof.sh` (network namespace with a chosen MAC/IP).
 - Lint: `php -l`, `python3 -m py_compile`, `xmllint --noout`, `shellcheck -S warning -s sh`
   (CI runs these plus a FreeBSD build of the engine).
 - Package on the firewall: `lab/build-package.sh` (see docs/PROGRESS.md for the
@@ -82,4 +83,7 @@ docs/                         ARCHITECTURE, USER-GUIDE, ENGINE-COMPARISON, PROGR
 - P3 Dashboard - done
 - P4 Blocking via pf tables + DNS filtering (+ DNS-learned blocking) - done
 - P5 Per-VLAN / user / scheduled policies - done (VLAN test: see PROGRESS)
-- P6 Hardening, packaging, CI, release - in progress, see PROGRESS
+- P6 Hardening, packaging, CI, release - done for 0.1.0 and 0.2.0, see PROGRESS
+- v0.2.0 adds MAC binding (pf ether rules in anchor l7sec_ether, strict mode, device
+  discovery, spoof events, static ARP) and GeoIP filtering (geo.py database + per-policy
+  pf tables, country tags on flows)
