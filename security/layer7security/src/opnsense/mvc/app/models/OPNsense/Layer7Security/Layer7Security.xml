@@ -1,0 +1,223 @@
+<model>
+    <mount>//OPNsense/layer7security</mount>
+    <version>1.0.0</version>
+    <description>Layer 7 Security: application visibility, policies and DNS filtering</description>
+    <items>
+        <general>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </enabled>
+            <interfaces type="InterfaceField">
+                <Required>N</Required>
+                <multiple>Y</multiple>
+                <AllowDynamic>Y</AllowDynamic>
+            </interfaces>
+            <enforce type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </enforce>
+            <retention type="IntegerField">
+                <Default>7</Default>
+                <Required>Y</Required>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>365</MaximumValue>
+                <ValidationMessage>Retention must be between 1 and 365 days.</ValidationMessage>
+            </retention>
+            <flowTimeout type="IntegerField">
+                <Default>60</Default>
+                <Required>Y</Required>
+                <MinimumValue>10</MinimumValue>
+                <MaximumValue>600</MaximumValue>
+                <ValidationMessage>Flow timeout must be between 10 and 600 seconds.</ValidationMessage>
+            </flowTimeout>
+            <blockTtl type="IntegerField">
+                <Default>3600</Default>
+                <Required>Y</Required>
+                <MinimumValue>60</MinimumValue>
+                <MaximumValue>86400</MaximumValue>
+                <ValidationMessage>Block lifetime must be between 60 and 86400 seconds.</ValidationMessage>
+            </blockTtl>
+            <dnsFilter type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </dnsFilter>
+            <dnsMode type="OptionField">
+                <Default>nxdomain</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <nxdomain>NXDOMAIN (name does not exist)</nxdomain>
+                    <refuse>REFUSED</refuse>
+                    <null>Sinkhole (0.0.0.0 / ::)</null>
+                </OptionValues>
+            </dnsMode>
+            <dnsCategories type="OptionField">
+                <Required>N</Required>
+                <multiple>Y</multiple>
+                <OptionValues>
+                    <ads>Advertising</ads>
+                    <trackers>Trackers</trackers>
+                    <malware>Malware</malware>
+                    <phishing>Phishing</phishing>
+                    <adult>Adult content</adult>
+                    <gambling>Gambling</gambling>
+                    <social>Social networks</social>
+                    <streaming>Streaming media</streaming>
+                    <games>Games</games>
+                </OptionValues>
+            </dnsCategories>
+            <dnsBlock type="CSVListField">
+                <Required>N</Required>
+                <MaskPerItem>Y</MaskPerItem>
+                <Mask>/^[a-z0-9]([a-z0-9._-]{0,251}[a-z0-9])?$/i</Mask>
+                <ValidationMessage>Enter domain names such as example.com, separated by commas.</ValidationMessage>
+            </dnsBlock>
+            <dnsAllow type="CSVListField">
+                <Required>N</Required>
+                <MaskPerItem>Y</MaskPerItem>
+                <Mask>/^[a-z0-9]([a-z0-9._-]{0,251}[a-z0-9])?$/i</Mask>
+                <ValidationMessage>Enter domain names such as example.com, separated by commas.</ValidationMessage>
+            </dnsAllow>
+            <feedUrl type="TextField">
+                <Required>N</Required>
+                <Mask>/^https?:\/\/[A-Za-z0-9.:\/_-]{1,200}$/</Mask>
+                <ValidationMessage>Enter an http(s) URL without spaces, for example http://192.168.1.73:8080/feeds</ValidationMessage>
+            </feedUrl>
+        </general>
+        <users>
+            <user type="ArrayField">
+                <name type="TextField">
+                    <Required>Y</Required>
+                    <Mask>/^[A-Za-z0-9_.@ -]{1,64}$/</Mask>
+                    <ValidationMessage>Use 1-64 letters, digits, space, dot, dash, underscore or @.</ValidationMessage>
+                    <Constraints>
+                        <check001>
+                            <ValidationMessage>A user with this name already exists.</ValidationMessage>
+                            <type>UniqueConstraint</type>
+                        </check001>
+                    </Constraints>
+                </name>
+                <addresses type="NetworkField">
+                    <Required>Y</Required>
+                    <asList>Y</asList>
+                    <WildcardEnabled>N</WildcardEnabled>
+                    <ValidationMessage>Enter IP addresses or networks (CIDR), separated by commas.</ValidationMessage>
+                </addresses>
+                <description type="DescriptionField"/>
+            </user>
+        </users>
+        <policies>
+            <policy type="ArrayField">
+                <enabled type="BooleanField">
+                    <Default>1</Default>
+                    <Required>Y</Required>
+                </enabled>
+                <name type="TextField">
+                    <Required>Y</Required>
+                    <Mask>/^[A-Za-z0-9_.@ -]{1,64}$/</Mask>
+                    <ValidationMessage>Use 1-64 letters, digits, space, dot, dash, underscore or @.</ValidationMessage>
+                </name>
+                <sequence type="IntegerField">
+                    <Default>100</Default>
+                    <Required>Y</Required>
+                    <MinimumValue>1</MinimumValue>
+                    <MaximumValue>9999</MaximumValue>
+                    <ValidationMessage>Sequence must be between 1 and 9999; lower runs first.</ValidationMessage>
+                </sequence>
+                <action type="OptionField">
+                    <Default>block</Default>
+                    <Required>Y</Required>
+                    <OptionValues>
+                        <monitor>Monitor (log only)</monitor>
+                        <allow>Allow (exempt from later policies)</allow>
+                        <block>Block</block>
+                    </OptionValues>
+                </action>
+                <interfaces type="InterfaceField">
+                    <Required>N</Required>
+                    <multiple>Y</multiple>
+                    <AllowDynamic>Y</AllowDynamic>
+                </interfaces>
+                <sources type="NetworkField">
+                    <Required>N</Required>
+                    <asList>Y</asList>
+                    <WildcardEnabled>N</WildcardEnabled>
+                    <ValidationMessage>Enter IP addresses or networks (CIDR), separated by commas.</ValidationMessage>
+                </sources>
+                <users type="ModelRelationField">
+                    <Model>
+                        <user>
+                            <source>OPNsense.Layer7Security.Layer7Security</source>
+                            <items>users.user</items>
+                            <display>name</display>
+                        </user>
+                    </Model>
+                    <Required>N</Required>
+                    <multiple>Y</multiple>
+                </users>
+                <applications type=".\AppField">
+                    <Required>N</Required>
+                    <multiple>Y</multiple>
+                </applications>
+                <categories type=".\CategoryField">
+                    <Required>N</Required>
+                    <multiple>Y</multiple>
+                </categories>
+                <hosts type="CSVListField">
+                    <Required>N</Required>
+                    <MaskPerItem>Y</MaskPerItem>
+                    <Mask>/^[a-z0-9]([a-z0-9._-]{0,251}[a-z0-9])?$/i</Mask>
+                    <ValidationMessage>Enter domain names such as example.com, separated by commas.</ValidationMessage>
+                </hosts>
+                <days type="OptionField">
+                    <Default>sun,mon,tue,wed,thu,fri,sat</Default>
+                    <Required>Y</Required>
+                    <multiple>Y</multiple>
+                    <OptionValues>
+                        <mon>Monday</mon>
+                        <tue>Tuesday</tue>
+                        <wed>Wednesday</wed>
+                        <thu>Thursday</thu>
+                        <fri>Friday</fri>
+                        <sat>Saturday</sat>
+                        <sun>Sunday</sun>
+                    </OptionValues>
+                </days>
+                <startTime type="TextField">
+                    <Default>00:00</Default>
+                    <Required>Y</Required>
+                    <Mask>/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/</Mask>
+                    <ValidationMessage>Enter a time as HH:MM (24 hour).</ValidationMessage>
+                </startTime>
+                <endTime type="TextField">
+                    <Default>00:00</Default>
+                    <Required>Y</Required>
+                    <Mask>/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/</Mask>
+                    <ValidationMessage>Enter a time as HH:MM (24 hour).</ValidationMessage>
+                </endTime>
+                <dnsCategories type="OptionField">
+                    <Required>N</Required>
+                    <multiple>Y</multiple>
+                    <OptionValues>
+                        <ads>Advertising</ads>
+                        <trackers>Trackers</trackers>
+                        <malware>Malware</malware>
+                        <phishing>Phishing</phishing>
+                        <adult>Adult content</adult>
+                        <gambling>Gambling</gambling>
+                        <social>Social networks</social>
+                        <streaming>Streaming media</streaming>
+                        <games>Games</games>
+                    </OptionValues>
+                </dnsCategories>
+                <dnsDomains type="CSVListField">
+                    <Required>N</Required>
+                    <MaskPerItem>Y</MaskPerItem>
+                    <Mask>/^[a-z0-9]([a-z0-9._-]{0,251}[a-z0-9])?$/i</Mask>
+                    <ValidationMessage>Enter domain names such as example.com, separated by commas.</ValidationMessage>
+                </dnsDomains>
+                <description type="DescriptionField"/>
+            </policy>
+        </policies>
+    </items>
+</model>

@@ -1,0 +1,16 @@
+Layer 7 Security identifies the applications and categories behind your
+traffic with nDPI, records flows to a local SQLite database, shows them on a
+dashboard, and enforces policies per interface/VLAN, user and schedule through
+pf tables and Unbound DNS filtering.
+
+This is an independent open-source project and is not affiliated with any
+commercial Layer 7 product.
+
+https://github.com/redmoon200/LKPLUGIN
+
+Plugin Changelog
+================
+
+0.1.0
+
+* initial release

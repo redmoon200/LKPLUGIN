@@ -1,0 +1,14 @@
+battle.net
+blizzard.com
+ea.com
+epicgames.com
+garena.com
+minecraft.net
+playstation.net
+riotgames.com
+roblox.com
+steamcommunity.com
+steampowered.com
+steamstatic.com
+supercell.com
+xboxlive.com

@@ -13,7 +13,13 @@
  */
 
 #include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
 #include <sys/wait.h>
+#include <net/if.h>
+#include <net/pfvar.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -49,6 +55,17 @@ int
 policy_count(void)
 {
 	return npols;
+}
+
+int
+npolicies_block(void)
+{
+	int i, n = 0;
+
+	for (i = 0; i < npols; i++)
+		if (pols[i].action == ACT_BLOCK)
+			n++;
+	return n;
 }
 
 policy_t *
@@ -128,6 +145,78 @@ policy_find(const addr_t *client, const char *master, const char *app, const cha
 	return NULL;
 }
 
+
+/* ---- direct pf(4) access: microseconds instead of a pfctl fork/exec ---- */
+
+static int pf_fd = -1;
+
+static int
+pf_dev(void)
+{
+	if (pf_fd < 0)
+		pf_fd = open("/dev/pf", O_RDWR | O_CLOEXEC);
+	return pf_fd;
+}
+
+static void
+pfaddr_set(struct pf_addr *pa, const addr_t *a)
+{
+	memset(pa, 0, sizeof(*pa));
+	memcpy(pa, a->a, a->af == AF_INET ? 4 : 16);
+}
+
+static void
+pfaddr_mask(struct pf_addr *pa, int af)
+{
+	memset(pa, 0xff, af == AF_INET ? 4 : 16);
+}
+
+/* add addresses to a pf table; returns number added or -1 on failure */
+static int
+tbl_add(const char *table, const addr_t *addrs, int n)
+{
+	struct pfioc_table io;
+	struct pfr_addr ad[64];
+	int i, fd = pf_dev();
+
+	if (fd < 0 || n <= 0 || n > 64)
+		return -1;
+	memset(ad, 0, sizeof(ad));
+	for (i = 0; i < n; i++) {
+		ad[i].pfra_af = (u_int8_t)addrs[i].af;
+		ad[i].pfra_net = addrs[i].af == AF_INET ? 32 : 128;
+		memcpy(&ad[i].pfra_u, addrs[i].a, addrs[i].af == AF_INET ? 4 : 16);
+	}
+	memset(&io, 0, sizeof(io));
+	if (strlcpy(io.pfrio_table.pfrt_name, table, sizeof(io.pfrio_table.pfrt_name)) >=
+	    sizeof(io.pfrio_table.pfrt_name))
+		return -1;
+	io.pfrio_buffer = ad;
+	io.pfrio_esize = sizeof(ad[0]);
+	io.pfrio_size = n;
+	if (ioctl(fd, DIOCRADDADDRS, &io) < 0)
+		return -1;
+	return io.pfrio_nadd;
+}
+
+/* kill all states between two hosts; returns 0 on success */
+static int
+kill_states(const addr_t *src, const addr_t *dst)
+{
+	struct pfioc_state_kill psk;
+	int fd = pf_dev();
+
+	if (fd < 0)
+		return -1;
+	memset(&psk, 0, sizeof(psk));
+	psk.psk_af = (sa_family_t)src->af;
+	pfaddr_set(&psk.psk_src.addr.v.a.addr, src);
+	pfaddr_mask(&psk.psk_src.addr.v.a.mask, src->af);
+	pfaddr_set(&psk.psk_dst.addr.v.a.addr, dst);
+	pfaddr_mask(&psk.psk_dst.addr.v.a.mask, dst->af);
+	return ioctl(fd, DIOCKILLSTATES, &psk) < 0 ? -1 : 0;
+}
+
 /* run pfctl with a fixed argv; no shell involved */
 static int
 run_pfctl(const config_t *c, char *const argv[])
@@ -155,9 +244,25 @@ run_pfctl(const config_t *c, char *const argv[])
 	return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 
+static int
+addr_blockable(const addr_t *a)
+{
+	if (a->af == AF_INET)
+		return !(a->a[0] == 127 || a->a[0] == 0 || (a->a[0] == 169 && a->a[1] == 254));
+	if (a->af == AF_INET6) {
+		static const uint8_t zero[16];
+
+		return memcmp(a->a, zero, 16) != 0 && !(a->a[0] == 0xfe && (a->a[1] & 0xc0) == 0x80);
+	}
+	return 0;
+}
+
 int
 pf_block(const config_t *c, const policy_t *p, const addr_t *cli, const addr_t *srv)
 {
+	if (!addr_blockable(srv))
+		return 0;
+
 	char s[64], d[64], key[96];
 	char *add[] = { (char *)"pfctl", (char *)"-q", (char *)"-t", (char *)p->table,
 	    (char *)"-T", (char *)"add", d, NULL };
@@ -179,11 +284,86 @@ pf_block(const config_t *c, const policy_t *p, const addr_t *cli, const addr_t *
 	snprintf(seen[slot].key, sizeof(seen[slot].key), "%s", key);
 	seen[slot].until = now + (c->block_ttl > 60 ? c->block_ttl / 2 : 30);
 
-	if (run_pfctl(c, add) != 0)
-		l7_log("pfctl add %s %s failed", p->table, d);
-	run_pfctl(c, kill);
+	if (!c->enforce) {
+		blocks_total++;
+		return 1;
+	}
+	if (tbl_add(p->table, srv, 1) < 0 && run_pfctl(c, add) != 0)
+		l7_log("add %s %s failed", p->table, d);
+	if (kill_states(cli, srv) < 0)
+		run_pfctl(c, kill);
 	blocks_total++;
 	return 1;
+}
+
+/*
+ * Add several addresses learned from a DNS answer to a policy table in one
+ * pfctl call (no states exist yet, so nothing needs to be killed).
+ */
+int
+pf_block_addrs(const config_t *c, const policy_t *p, const addr_t *cli, const addr_t *addrs, int n)
+{
+	enum { MAXA = 24 };
+	char names[MAXA][64];
+	char *argv[MAXA + 8];
+	time_t now = time(NULL);
+	int i, j, argc = 0, added = 0;
+
+	argv[argc++] = (char *)"pfctl";
+	argv[argc++] = (char *)"-q";
+	argv[argc++] = (char *)"-t";
+	argv[argc++] = (char *)p->table;
+	argv[argc++] = (char *)"-T";
+	argv[argc++] = (char *)"add";
+	for (i = 0; i < n && added < MAXA; i++) {
+		char key[96];
+		int slot = -1, dup = 0;
+
+		addr_str(&addrs[i], names[added], sizeof(names[added]));
+		snprintf(key, sizeof(key), "%s|%s", p->table, names[added]);
+		for (j = 0; j < DEDUP; j++) {
+			if (strcmp(seen[j].key, key) == 0 && seen[j].until > now) {
+				dup = 1;
+				break;
+			}
+			if (slot < 0 && seen[j].until <= now)
+				slot = j;
+		}
+		if (dup)
+			continue;
+		if (slot < 0)
+			slot = (int)(now % DEDUP);
+		snprintf(seen[slot].key, sizeof(seen[slot].key), "%s", key);
+		seen[slot].until = now + (c->block_ttl > 60 ? c->block_ttl / 2 : 30);
+		argv[argc++] = names[added];
+		added++;
+	}
+	if (added == 0)
+		return 0;
+	argv[argc] = NULL;
+	if (!c->enforce) {
+		blocks_total += (uint64_t)added;
+		return added;
+	}
+	{
+		addr_t list[MAXA];
+		int k, m = 0;
+
+		for (k = 0; k < added; k++)
+			if (addr_parse(names[k], &list[m]) == 0)
+				m++;
+		if (tbl_add(p->table, list, m) < 0 && run_pfctl(c, argv) != 0)
+			l7_log("add %s (%d addresses) failed", p->table, added);
+		/*
+		 * The client may already have raced the answer and opened a
+		 * connection; established states bypass the block rule, so
+		 * drop them now.
+		 */
+		for (k = 0; k < m; k++)
+			kill_states(cli, &list[k]);
+	}
+	blocks_total += (uint64_t)added;
+	return added;
 }
 
 void

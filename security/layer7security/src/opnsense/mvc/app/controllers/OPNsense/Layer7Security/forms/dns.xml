@@ -1,0 +1,42 @@
+<form>
+    <field>
+        <id>layer7security.general.dnsFilter</id>
+        <label>Enable DNS filtering</label>
+        <type>checkbox</type>
+        <help>Block lookups through Unbound for the categories and domains below. Clients must use this firewall for DNS.</help>
+    </field>
+    <field>
+        <id>layer7security.general.dnsMode</id>
+        <label>Blocked answer</label>
+        <type>dropdown</type>
+        <help>What a blocked lookup returns.</help>
+    </field>
+    <field>
+        <id>layer7security.general.dnsCategories</id>
+        <label>Block categories (all clients)</label>
+        <type>select_multiple</type>
+        <help>Applies to every client. Per-group categories are set in each policy. Lists come from the feed below plus a small built-in seed list.</help>
+    </field>
+    <field>
+        <id>layer7security.general.dnsBlock</id>
+        <label>Always block domains</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Domains (and their subdomains) blocked for everyone.</help>
+    </field>
+    <field>
+        <id>layer7security.general.dnsAllow</id>
+        <label>Always allow domains</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>These domains are never blocked by category lists.</help>
+    </field>
+    <field>
+        <id>layer7security.general.feedUrl</id>
+        <label>Feed URL</label>
+        <type>text</type>
+        <help>Base URL that serves one text file per category (ads.txt, malware.txt, ...). Example: http://192.168.1.73:8080/feeds. Leave empty to use only the seed lists.</help>
+    </field>
+</form>

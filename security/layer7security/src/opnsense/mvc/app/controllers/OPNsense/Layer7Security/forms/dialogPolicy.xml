@@ -1,0 +1,99 @@
+<form>
+    <field>
+        <id>policy.enabled</id>
+        <label>Enabled</label>
+        <type>checkbox</type>
+    </field>
+    <field>
+        <id>policy.name</id>
+        <label>Name</label>
+        <type>text</type>
+    </field>
+    <field>
+        <id>policy.sequence</id>
+        <label>Sequence</label>
+        <type>text</type>
+        <help>Policies are evaluated in ascending order; the first match wins.</help>
+    </field>
+    <field>
+        <id>policy.action</id>
+        <label>Action</label>
+        <type>dropdown</type>
+        <help>Block adds the destination to a pf table and drops later connections. Allow stops evaluation (an exemption). Monitor only records.</help>
+    </field>
+    <field>
+        <id>policy.interfaces</id>
+        <label>Interfaces / VLANs</label>
+        <type>select_multiple</type>
+        <help>Limit the policy to clients behind these interfaces (use VLAN interfaces for per-VLAN policies). Empty means all.</help>
+    </field>
+    <field>
+        <id>policy.sources</id>
+        <label>Source networks</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Optional extra client addresses or networks (e.g. 10.77.0.0/24).</help>
+    </field>
+    <field>
+        <id>policy.users</id>
+        <label>Users</label>
+        <type>select_multiple</type>
+        <help>Named users defined on the Users page; matched by their IP addresses.</help>
+    </field>
+    <field>
+        <id>policy.applications</id>
+        <label>Applications</label>
+        <type>select_multiple</type>
+        <help>Match these applications (nDPI names such as YouTube, Facebook).</help>
+    </field>
+    <field>
+        <id>policy.categories</id>
+        <label>Application categories</label>
+        <type>select_multiple</type>
+        <help>Match these nDPI categories (e.g. SocialNetwork, Game, VPN).</help>
+    </field>
+    <field>
+        <id>policy.hosts</id>
+        <label>Host names</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Match TLS server names / HTTP hosts and their subdomains (e.g. example.com).</help>
+    </field>
+    <field>
+        <id>policy.days</id>
+        <label>Active days</label>
+        <type>select_multiple</type>
+    </field>
+    <field>
+        <id>policy.startTime</id>
+        <label>Start time</label>
+        <type>text</type>
+        <help>HH:MM. Equal start and end time means all day. A window that ends before it starts runs overnight.</help>
+    </field>
+    <field>
+        <id>policy.endTime</id>
+        <label>End time</label>
+        <type>text</type>
+    </field>
+    <field>
+        <id>policy.dnsCategories</id>
+        <label>DNS block categories</label>
+        <type>select_multiple</type>
+        <help>For block policies: also block these DNS categories for the policy's source networks.</help>
+    </field>
+    <field>
+        <id>policy.dnsDomains</id>
+        <label>DNS block domains</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>For block policies: also block these domains for the policy's source networks.</help>
+    </field>
+    <field>
+        <id>policy.description</id>
+        <label>Description</label>
+        <type>text</type>
+    </field>
+</form>

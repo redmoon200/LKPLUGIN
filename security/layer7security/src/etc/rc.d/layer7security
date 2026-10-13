@@ -1,0 +1,46 @@
+#!/bin/sh
+
+# Copyright (c) 2026, redmoon200
+# All rights reserved.
+# SPDX-License-Identifier: BSD-2-Clause
+
+# PROVIDE: layer7security
+# REQUIRE: LOGIN
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name=layer7security
+rcvar=layer7security_enable
+desc="Layer 7 application classification engine"
+
+load_rc_config ${name}
+
+: ${layer7security_enable:=NO}
+
+engine=/usr/local/libexec/layer7security/l7engine
+conf=/usr/local/etc/layer7security/engine.conf
+logfile=/var/log/layer7security.log
+pidfile=/var/run/${name}.pid
+
+# daemon(8) supervises the engine: stopping the supervisor terminates it
+command=/usr/sbin/daemon
+procname=/usr/sbin/daemon
+command_args="-r -P ${pidfile} -o ${logfile} ${engine} -c ${conf}"
+
+start_precmd=layer7security_prestart
+
+layer7security_prestart()
+{
+	if [ ! -x "${engine}" ]; then
+		echo "${engine} not found" >&2
+		return 1
+	fi
+	if [ ! -f "${conf}" ]; then
+		echo "${conf} not found, apply the configuration first" >&2
+		return 1
+	fi
+	mkdir -p /var/db/layer7security /var/run/layer7security
+}
+
+run_rc_command "$1"

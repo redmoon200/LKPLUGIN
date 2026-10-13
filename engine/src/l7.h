@@ -94,8 +94,11 @@ void policy_set(policy_t *p, int n);
 policy_t *policy_find(const addr_t *client, const char *master, const char *app,
     const char *cat, const char *host);
 int policy_count(void);
+int npolicies_block(void);
 policy_t *policy_get(int i);
 int pf_block(const config_t *c, const policy_t *p, const addr_t *cli, const addr_t *srv);
+int pf_block_addrs(const config_t *c, const policy_t *p, const addr_t *cli, const addr_t *addrs,
+    int n);
 void pf_expire_all(const config_t *c);
 void policy_sweep_schedules(const config_t *c);
 void pf_flush_all(const config_t *c);

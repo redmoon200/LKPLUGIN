@@ -1,0 +1,76 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y php-cli libxml2-utils shellcheck
+
+      - name: PHP syntax
+        run: |
+          find security -type f \( -name '*.php' -o -name '*.inc' \) -print0 | xargs -0 -n1 php -l >/dev/null
+          php -l security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/apply.php >/dev/null
+
+      - name: Python syntax
+        run: |
+          python3 -m py_compile security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/stats.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/feed_update.py \
+            cloud/server/build_feeds.py cloud/server/feedserver.py
+
+      - name: XML well-formed
+        run: find security -name '*.xml' -print0 | xargs -0 -n1 xmllint --noout
+
+      - name: Shell scripts
+        run: |
+          shellcheck -S warning -s sh -e SC1091,SC2034,SC2086,SC2155 \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/catalog.sh \
+            security/layer7security/src/etc/rc.d/layer7security \
+            cloud/install.sh
+
+      - name: Feed list builder self-test
+        run: |
+          python3 - <<'EOF'
+          import sys
+          sys.path.insert(0, 'cloud/server')
+          import build_feeds as b
+          got = b.parse("# c\n0.0.0.0 ads.example.com\n127.0.0.1 localhost\nplain.example.org\n1.2.3.4 other.example\n")
+          assert got == {'ads.example.com', 'plain.example.org'}, got
+          print('ok')
+          EOF
+
+      - name: No secrets in tree
+        run: |
+          if git grep -nE 'ghp_[A-Za-z0-9]{20,}|BEGIN (RSA |OPENSSH |EC )?PRIVATE KEY'; then
+            echo 'secret-looking content found'; exit 1
+          fi
+
+  engine-freebsd:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and test the engine on FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "14.3"
+          usesh: true
+          prepare: |
+            pkg install -y ndpi sqlite3 gmake pkgconf
+          run: |
+            cd engine
+            make
+            ./l7engine --version
+            ./l7engine --list-apps | head -c 300
+            ./l7engine --list-categories | head -c 200
+            make check

@@ -1,0 +1,21 @@
+<form>
+    <field>
+        <id>user.name</id>
+        <label>Name</label>
+        <type>text</type>
+        <help>A person or device group, shown in reports.</help>
+    </field>
+    <field>
+        <id>user.addresses</id>
+        <label>IP addresses</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Addresses or networks that identify this user (use DHCP static leases so they stay fixed).</help>
+    </field>
+    <field>
+        <id>user.description</id>
+        <label>Description</label>
+        <type>text</type>
+    </field>
+</form>

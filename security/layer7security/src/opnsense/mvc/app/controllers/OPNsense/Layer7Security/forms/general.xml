@@ -1,0 +1,40 @@
+<form>
+    <field>
+        <id>layer7security.general.enabled</id>
+        <label>Enabled</label>
+        <type>checkbox</type>
+        <help>Run the Layer 7 engine. Traffic is classified and stored; policies are enforced if enforcement is on.</help>
+    </field>
+    <field>
+        <id>layer7security.general.interfaces</id>
+        <label>Monitored interfaces</label>
+        <type>select_multiple</type>
+        <help>Capture on these interfaces. Choose the LAN (client side) interfaces so client addresses are visible before NAT. VLAN interfaces can be selected individually.</help>
+    </field>
+    <field>
+        <id>layer7security.general.enforce</id>
+        <label>Enforce blocking</label>
+        <type>checkbox</type>
+        <help>When off, block policies only log what they would block.</help>
+    </field>
+    <field>
+        <id>layer7security.general.retention</id>
+        <label>Retention (days)</label>
+        <type>text</type>
+        <help>Flows and events older than this are deleted.</help>
+    </field>
+    <field>
+        <id>layer7security.general.flowTimeout</id>
+        <label>Flow idle timeout (s)</label>
+        <type>text</type>
+        <advanced>true</advanced>
+        <help>An idle flow is closed and stored after this many seconds.</help>
+    </field>
+    <field>
+        <id>layer7security.general.blockTtl</id>
+        <label>Block lifetime (s)</label>
+        <type>text</type>
+        <advanced>true</advanced>
+        <help>How long a blocked destination address stays in the pf table before it expires.</help>
+    </field>
+</form>
