@@ -59,7 +59,7 @@ docs/                         ARCHITECTURE, USER-GUIDE, ENGINE-COMPARISON, PROGR
   `configctl layer7security start|stop|restart|status`.
 - API check (lab): `. lab/env.sh; api GET /api/layer7security/service/status`.
 - pf check: `pfctl -t l7_blk_1 -T show`, `pfctl -sr | grep l7_blk`.
-- End-to-end: `sh tests/e2e.sh` (50 checks; needs lab/env.sh, API key, client VM with a
+- End-to-end: `sh tests/e2e.sh` (165 checks, about 45 minutes; needs lab/env.sh, API key, client VM with a
   VLAN, internet). MAC tests use `lab/spoof.sh` (network namespace with a chosen MAC/IP).
 - Lint: `php -l`, `python3 -m py_compile`, `xmllint --noout`, `shellcheck -S warning -s sh`
   (CI runs these plus a FreeBSD build of the engine).

@@ -178,6 +178,24 @@ Decisions that need your attention:
   (about 49k addresses), hashes (1.3k SHA-256, 141 SHA-1, 197k MD5), signatures, manifest with sources and
   licences, gzip and ETag; the firewall downloads 16 lists plus signatures in about 6 seconds.
 
+Test evidence for 0.4.0:
+- **Unit tests**: 106 (detectors 21, audit 17, ICAP 20, antivirus 18, live sessions 9, sign-in and portal 12,
+  cloud builder, downloaders and lookups 9).
+- **End-to-end** (`tests/e2e.sh` plus `tests/e2e_v04_sections.sh`): 165 checks, 165 passed on the installed
+  `.pkg` (about 45 minutes). New sections: `web` (wildcards, IP rules and exceptions, safety refusals, bulk add,
+  a timed quick action that expires, live sessions listing a running download and cutting it), `appctl`, `cfs`
+  (cloud lists, safe search, YouTube restricted mode, threat lists in pf, activity log), `dpi` (scope all with a
+  full CA, exclusions, session log), `auth` (portal redirect, blocked HTTPS, wrong and right password, user
+  policy for a signed-in device, sign-out, bypass), `sig` (YARA monitor and block, MD5 block, cloud hash lookup).
+- **Browser** (Playwright, real Chromium): `ui_check` (18 pages and the four old addresses), `ui_crud`,
+  `ui_crud2`, `ui_crud3` and the new `ui_console` (menus, wildcard dialog, test boxes, live list, quick action
+  dialog from the history list creating a temporary rule, one-click categories, EICAR file scan, phone-width
+  layout): all pass, no JavaScript errors.
+- **Engine**: `make check` (300,000 mutated packets twice, ASan + UBSan) plus the host pattern self-test; CI
+  runs the same on FreeBSD 14.3 with nDPI 6. GitHub Actions green.
+- **Package**: `os-layer7security-0.4.0.pkg` (about 300 KB) built with the opnsense/plugins framework, installed
+  over 0.3.0 (config migrated 1.4.0 to 1.5.0) and again after `pkg delete`; `pkg check -s` clean.
+
 Bugs found and fixed while testing this release:
 - `auth.logout` closed the database inside its own `with` block when the address was not signed in.
 - The policy name mask refuses `:`, so the one-click rules are named `AppControl - <name>`.
