@@ -19,7 +19,7 @@
 #define L7_VERSION "0.2.0"
 #define L7_MAX_IFACES 8
 #define L7_MAX_POLICIES 128
-#define L7_MAX_LIST 64
+#define L7_MAX_LIST 128
 #define L7_MAX_CIDR 64
 
 typedef struct {
@@ -50,6 +50,9 @@ typedef struct {
 	int start_min;		/* minutes after midnight */
 	int end_min;		/* equal to start_min => all day */
 	char table[32];		/* pf table name, l7_blk_<id> */
+	char ai[24];		/* AI service id when this is an AI policy, else empty */
+	int inspect;		/* AI policy: send this service through the inspection proxy */
+	int quic;		/* AI policy: force the service off QUIC (UDP/443) */
 } policy_t;
 
 typedef struct {
@@ -69,7 +72,12 @@ typedef struct {
 	char geo_dir[256];
 	int nnet;		/* networks of the monitored interfaces (device discovery) */
 	cidr_t nets[16];
+	int ai_inspect;		/* 1: fill l7_ai_bump so the proxy sees AI traffic */
+	int ai_quic;		/* 0 off, 1 AI services only (table), 2 all QUIC (pf rule only) */
 } config_t;
+
+#define AI_TABLE_BUMP "l7_ai_bump"
+#define AI_TABLE_QUIC "l7_ai_quic"
 
 /* config.c */
 int config_load(config_t *c, const char *path);
@@ -85,11 +93,12 @@ void store_close(void);
 void store_tick(int force_commit);
 uint64_t store_flow_insert(const char *iface, int l4, const char *cli, const char *srv,
     int cport, int sport, const char *master, const char *app, const char *cat,
-    const char *host, time_t t0, const char *action, const char *policy, const char *country);
+    const char *host, time_t t0, const char *action, const char *policy, const char *country,
+    const char *ai);
 int store_device(const char *ip, const char *mac, const char *iface, time_t now, uint32_t hits);
 void store_flow_update(uint64_t id, time_t t1, uint64_t bu, uint64_t bd, uint64_t pu,
     uint64_t pd, const char *master, const char *app, const char *cat, const char *host,
-    const char *action, const char *policy);
+    const char *action, const char *policy, const char *ai);
 void store_event(const char *type, const char *cli, const char *srv, const char *app,
     const char *cat, const char *host, const char *policy, const char *detail);
 void store_prune(int retention_days);
@@ -105,6 +114,8 @@ policy_t *policy_get(int i);
 int pf_block(const config_t *c, const policy_t *p, const addr_t *cli, const addr_t *srv);
 int pf_block_addrs(const config_t *c, const policy_t *p, const addr_t *cli, const addr_t *addrs,
     int n);
+int pf_add_table(const config_t *c, const char *table, const addr_t *cli, const addr_t *addrs,
+    int n, int kill);
 void pf_expire_all(const config_t *c);
 void policy_sweep_schedules(const config_t *c);
 void pf_flush_all(const config_t *c);

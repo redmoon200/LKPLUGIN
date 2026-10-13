@@ -84,7 +84,92 @@ class PolicyCompiler
             'macStaticArp' => (string)$g->macStaticArp === '1',
             'geoEnabled' => (string)$g->geoEnabled === '1',
             'geoSource' => (string)$g->geoSource,
+            'aiEnabled' => (string)$g->aiEnabled === '1',
+            'aiDefault' => (string)$g->aiDefault ?: 'monitor',
+            'aiQuic' => (string)$g->aiQuic ?: 'off',
+            'auditEnabled' => (string)$mdl->audit->enabled === '1',
+            'privacyAck' => (string)$mdl->audit->privacyAckBy !== '' && (string)$mdl->audit->privacyAckAt !== '',
         ];
+    }
+
+    /** AI service catalog (id => [name, domains, ...]) */
+    public static function aiCatalog()
+    {
+        $data = json_decode(@file_get_contents('/usr/local/share/layer7security/ai_services.json') ?: '[]', true);
+        $out = [];
+        foreach (is_array($data) ? $data : [] as $svc) {
+            if (!empty($svc['id']) && !empty($svc['domains'])) {
+                $out[$svc['id']] = $svc;
+            }
+        }
+        return $out;
+    }
+
+    /** source networks of a model row: explicit sources plus the addresses of the selected users */
+    private static function rowSources($mdl, $row)
+    {
+        $sources = self::csv($row->sources);
+        foreach (self::csv($row->users) as $uid) {
+            $user = $mdl->getNodeByReference('users.user.' . $uid);
+            if ($user !== null) {
+                foreach (self::csv($user->addresses) as $addr) {
+                    $sources[] = $addr;
+                }
+            }
+        }
+        return array_values(array_unique($sources));
+    }
+
+    private static function dayMask($row)
+    {
+        $mask = 0;
+        foreach (self::csv($row->days) as $day) {
+            if (isset(self::DAYS[$day])) {
+                $mask |= 1 << self::DAYS[$day];
+            }
+        }
+        return $mask ?: 0x7f;
+    }
+
+    /**
+     * Engine policies for AI services. Rules configured per service come first,
+     * then one catch-all per service with the default action, so the first
+     * match decides. Hosts are suffix-matched against the TLS/QUIC server name
+     * and DNS answers.
+     */
+    public static function aiPolicies(array $general)
+    {
+        if (!$general['aiEnabled']) {
+            return [];
+        }
+        $catalog = self::aiCatalog();
+        $mdl = new Layer7Security();
+        $quic = $general['aiQuic'] === 'ai';
+        $out = [];
+        foreach ($mdl->ai->service->iterateItems() as $uuid => $row) {
+            $id = (string)$row->service;
+            if ((string)$row->enabled !== '1' || !isset($catalog[$id])) {
+                continue;
+            }
+            $out[] = [
+                'uuid' => $uuid, 'name' => 'AI: ' . $catalog[$id]['name'], 'action' => (string)$row->action,
+                'ifids' => [], 'devices' => [], 'sources' => self::rowSources($mdl, $row),
+                'apps' => [], 'cats' => [], 'hosts' => array_map('strtolower', $catalog[$id]['domains']),
+                'dayMask' => self::dayMask($row), 'start' => (string)$row->startTime, 'end' => (string)$row->endTime,
+                'dnsCategories' => [], 'dnsDomains' => [], 'ai' => $id,
+                'inspect' => (string)$row->inspect === '1', 'quic' => $quic,
+            ];
+        }
+        foreach ($catalog as $id => $svc) {
+            $out[] = [
+                'uuid' => 'ai-default-' . $id, 'name' => 'AI: ' . $svc['name'] . ' (default)',
+                'action' => $general['aiDefault'], 'ifids' => [], 'devices' => [], 'sources' => [],
+                'apps' => [], 'cats' => [], 'hosts' => array_map('strtolower', $svc['domains']),
+                'dayMask' => 0x7f, 'start' => '00:00', 'end' => '00:00',
+                'dnsCategories' => [], 'dnsDomains' => [], 'ai' => $id, 'inspect' => false, 'quic' => $quic,
+            ];
+        }
+        return $out;
     }
 
     /**
@@ -107,6 +192,10 @@ class PolicyCompiler
 
         $result = [];
         $id = 0;
+        foreach (self::aiPolicies(self::general()) as $ai) {
+            $id++;
+            $result[] = array_merge($ai, ['id' => $id, 'table' => 'l7_blk_' . $id]);
+        }
         foreach ($rows as $row) {
             $p = $row['node'];
             $id++;
@@ -156,6 +245,7 @@ class PolicyCompiler
                 'dnsCategories' => self::csv($p->dnsCategories),
                 'dnsDomains' => array_map('strtolower', self::csv($p->dnsDomains)),
                 'table' => 'l7_blk_' . $id,
+                'ai' => '', 'inspect' => false, 'quic' => false,
             ];
         }
         return $result;

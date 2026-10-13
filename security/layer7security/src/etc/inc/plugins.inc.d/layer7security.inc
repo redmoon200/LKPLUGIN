@@ -51,6 +51,7 @@ function layer7security_firewall(Plugin $fw)
     $general = PolicyCompiler::general();
     layer7security_mac_anchor($fw, $general);
     layer7security_geo_rules($fw, $general);
+    layer7security_ai_rules($fw, $general);
     foreach (PolicyCompiler::policies() as $policy) {
         if ($policy['action'] !== 'block') {
             continue;
@@ -155,6 +156,29 @@ function layer7security_geo_rules(Plugin $fw, array $general)
     }
 }
 
+/**
+ * AI services: tables the engine fills (inspection proxy redirect, QUIC block)
+ * and the QUIC block rules. QUIC to AI services is dropped so clients fall back
+ * to TCP/TLS, where the SNI is visible and the connection can be inspected.
+ */
+function layer7security_ai_rules(Plugin $fw, array $general)
+{
+    if (!$general['aiEnabled']) {
+        return;
+    }
+    if ($general['aiQuic'] !== 'off') {
+        $base = ['type' => 'block', 'quick' => true, 'direction' => 'in', 'protocol' => 'udp',
+                 'to_port' => '443', 'label' => 'l7ai_quic', 'descr' => 'Layer7 AI: block QUIC'];
+        if ($general['aiQuic'] === 'ai') {
+            $fw->registerTable('l7_ai_quic', true);
+            $base['to'] = '<l7_ai_quic>';
+        }
+        foreach ($general['ifids'] as $ifid) {
+            $fw->registerFilterRule(1, array_merge($base, ['interface' => $ifid]));
+        }
+    }
+}
+
 function layer7security_cron()
 {
     /* re-evaluate schedule windows for DNS filtering once a minute */
@@ -162,5 +186,7 @@ function layer7security_cron()
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security dns-schedule', '*']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security feed-update-auto', '17', '*/6']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security geo-update-auto', '41', '4', '*', '*', '1']],
+        ['autocron' => ['/usr/local/sbin/configctl -d layer7security audit-ingest', '*']],
+        ['autocron' => ['/usr/local/sbin/configctl -d layer7security audit-prune', '23', '3']],
     ];
 }

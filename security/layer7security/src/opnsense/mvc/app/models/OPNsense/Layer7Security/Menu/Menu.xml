@@ -6,6 +6,8 @@
             <Policies order="30" url="/ui/layer7security/policies"/>
             <Users order="40" url="/ui/layer7security/users"/>
             <DnsFiltering VisibleName="DNS Filtering" order="50" url="/ui/layer7security/dns"/>
+            <AiServices VisibleName="AI Services" order="52" url="/ui/layer7security/ai"/>
+            <AiAudit VisibleName="AI Audit" order="54" url="/ui/layer7security/audit"/>
             <MacBinding VisibleName="MAC Binding" order="55" url="/ui/layer7security/macbinding"/>
             <GeoIP VisibleName="GeoIP" order="57" url="/ui/layer7security/geoip"/>
             <Settings order="60" url="/ui/layer7security/settings"/>

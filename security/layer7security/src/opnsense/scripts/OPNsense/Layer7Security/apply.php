@@ -217,6 +217,11 @@ function main($argv)
     $bindings = PolicyCompiler::bindings();
     $backend = new Backend();
 
+    /* logging what people do with AI services needs the privacy notice to be acknowledged first */
+    if ($general['enabled'] && $general['auditEnabled'] && !$general['privacyAck']) {
+        return 'AI audit logging is enabled but the privacy notice has not been acknowledged (AI Audit > Privacy).';
+    }
+
     if (in_array('--dns-only', $argv)) {
         if (build_dns($general, $policies)) {
             $backend->configdRun('unbound restart');
@@ -235,6 +240,8 @@ function main($argv)
     $conf .= 'enforce=' . ($general['enforce'] ? 1 : 0) . "\n";
     $conf .= "db=" . DB_DIR . "/l7.db\n";
     $conf .= "policies=" . CONF_DIR . "/policies.conf\n";
+    $conf .= 'ai_inspect=' . (!empty($general['aiInspect']) ? 1 : 0) . PHP_EOL;
+    $conf .= 'ai_quic=' . ['off' => 0, 'ai' => 1, 'all' => 2][$general['aiQuic']] . PHP_EOL;
     $conf .= 'bindings=' . CONF_DIR . '/bindings.conf' . PHP_EOL;
     $conf .= 'geo_dir=' . GEO_DIR . PHP_EOL;
     foreach ($general['ifids'] as $ifid) {
@@ -274,6 +281,11 @@ function main($argv)
             $p['dayMask'],
             $p['start'],
             $p['end'],
+            implode(',', array_filter([
+                !empty($p['ai']) ? 'ai=' . $p['ai'] : '',
+                !empty($p['inspect']) ? 'inspect' : '',
+                !empty($p['quic']) ? 'quic' : '',
+            ])) ?: '-',
         ]) . "\n";
     }
     write_if_changed(CONF_DIR . '/policies.conf', $lines);
@@ -303,6 +315,10 @@ function main($argv)
         if (strpos($status, 'is running') === false) {
             return 'engine did not start: ' . trim($backend->configdRun('layer7security log-tail'));
         }
+    }
+    /* start the audit trail from the moment it is enabled (older engine events are never imported) */
+    if ($general['auditEnabled'] && $general['privacyAck']) {
+        $backend->configdRun('layer7security audit-ingest');
     }
     return 'OK';
 }

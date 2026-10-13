@@ -1,0 +1,58 @@
+<form>
+    <field>
+        <id>aiservice.enabled</id>
+        <label>Enabled</label>
+        <type>checkbox</type>
+    </field>
+    <field>
+        <id>aiservice.service</id>
+        <label>AI service</label>
+        <type>dropdown</type>
+    </field>
+    <field>
+        <id>aiservice.action</id>
+        <label>Action</label>
+        <type>dropdown</type>
+        <help>Rules are evaluated in list order before the default action; the first rule that matches the client wins.</help>
+    </field>
+    <field>
+        <id>aiservice.inspect</id>
+        <label>Inspect content</label>
+        <type>checkbox</type>
+        <help>Send this service through the TLS inspection proxy for data-loss checks (needs AI Inspection to be enabled). Ignored for blocked services.</help>
+    </field>
+    <field>
+        <id>aiservice.sources</id>
+        <label>Source networks</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Limit the rule to these clients. Empty means everyone.</help>
+    </field>
+    <field>
+        <id>aiservice.users</id>
+        <label>Users</label>
+        <type>select_multiple</type>
+    </field>
+    <field>
+        <id>aiservice.days</id>
+        <label>Active days</label>
+        <type>select_multiple</type>
+    </field>
+    <field>
+        <id>aiservice.startTime</id>
+        <label>Start time</label>
+        <type>text</type>
+        <help>HH:MM. Equal start and end time means all day.</help>
+    </field>
+    <field>
+        <id>aiservice.endTime</id>
+        <label>End time</label>
+        <type>text</type>
+    </field>
+    <field>
+        <id>aiservice.description</id>
+        <label>Description</label>
+        <type>text</type>
+    </field>
+</form>

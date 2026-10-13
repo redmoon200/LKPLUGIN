@@ -144,6 +144,10 @@ config_load(config_t *c, const char *path)
 			c->enforce = atoi(v);
 		else if (strcmp(k, "debug") == 0)
 			c->debug = atoi(v);
+		else if (strcmp(k, "ai_inspect") == 0)
+			c->ai_inspect = atoi(v);
+		else if (strcmp(k, "ai_quic") == 0)
+			c->ai_quic = atoi(v);
 		else if (strcmp(k, "bindings") == 0)
 			snprintf(c->bindings_path, sizeof(c->bindings_path), "%s", v);
 		else if (strcmp(k, "geo_dir") == 0)
@@ -197,13 +201,13 @@ int
 policies_load(const char *path, policy_t *p, int max)
 {
 	FILE *f;
-	char line[2048];
+	static char line[32768];
 	int n = 0;
 
 	if ((f = fopen(path, "r")) == NULL)
 		return 0;
 	while (fgets(line, sizeof(line), f) && n < max) {
-		char *fld[10], *s = line, *t;
+		char *fld[11], *s = line, *t;
 		int i, nf = 0;
 		policy_t *q = &p[n];
 		char cidrs[1024];
@@ -213,10 +217,10 @@ policies_load(const char *path, policy_t *p, int max)
 		if (line[0] == '#' || line[0] == '\0')
 			continue;
 		memset(fld, 0, sizeof(fld));
-		while (nf < 10 && (t = strsep(&s, "\t")) != NULL)
+		while (nf < 11 && (t = strsep(&s, "\t")) != NULL)
 			fld[nf++] = t;
 		if (nf < 10)
-			continue;
+			continue;	/* the 11th field (flags) is optional */
 		memset(q, 0, sizeof(*q));
 		q->id = atoi(fld[0]);
 		if (q->id <= 0)
@@ -251,6 +255,19 @@ policies_load(const char *path, policy_t *p, int max)
 		q->start_min = hhmm(fld[8]);
 		q->end_min = hhmm(fld[9]);
 		snprintf(q->table, sizeof(q->table), "l7_blk_%d", q->id);
+		/* optional flags: ai=<id>,inspect,quic */
+		if (nf >= 11 && strcmp(fld[10], "-") != 0) {
+			char *fl, *fs = NULL;
+
+			for (fl = strtok_r(fld[10], ",", &fs); fl; fl = strtok_r(NULL, ",", &fs)) {
+				if (strncmp(fl, "ai=", 3) == 0)
+					snprintf(q->ai, sizeof(q->ai), "%s", fl + 3);
+				else if (strcmp(fl, "inspect") == 0)
+					q->inspect = 1;
+				else if (strcmp(fl, "quic") == 0)
+					q->quic = 1;
+			}
+		}
 		n++;
 	}
 	fclose(f);

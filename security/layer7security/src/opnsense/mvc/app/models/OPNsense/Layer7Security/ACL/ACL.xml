@@ -2,8 +2,32 @@
     <page-services-layer7security>
         <name>Services: Layer 7 Security</name>
         <patterns>
-            <pattern>ui/layer7security/*</pattern>
-            <pattern>api/layer7security/*</pattern>
+            <pattern>ui/layer7security/dashboard*</pattern>
+            <pattern>ui/layer7security/flows*</pattern>
+            <pattern>ui/layer7security/policies*</pattern>
+            <pattern>ui/layer7security/users*</pattern>
+            <pattern>ui/layer7security/dns*</pattern>
+            <pattern>ui/layer7security/macbinding*</pattern>
+            <pattern>ui/layer7security/geoip*</pattern>
+            <pattern>ui/layer7security/ai</pattern>
+            <pattern>ui/layer7security/inspection*</pattern>
+            <pattern>ui/layer7security/antivirus*</pattern>
+            <pattern>ui/layer7security/settings*</pattern>
+            <pattern>api/layer7security/service/*</pattern>
+            <pattern>api/layer7security/settings/*</pattern>
+            <pattern>api/layer7security/dashboard/*</pattern>
+            <pattern>api/layer7security/flows/*</pattern>
+            <pattern>api/layer7security/dns/*</pattern>
+            <pattern>api/layer7security/geo/*</pattern>
+            <pattern>api/layer7security/inspection/*</pattern>
+            <pattern>api/layer7security/antivirus/*</pattern>
         </patterns>
     </page-services-layer7security>
+    <page-services-layer7security-audit>
+        <name>Services: Layer 7 Security: AI Audit log (view, export, verify, settings)</name>
+        <patterns>
+            <pattern>ui/layer7security/audit*</pattern>
+            <pattern>api/layer7security/audit/*</pattern>
+        </patterns>
+    </page-services-layer7security-audit>
 </acl>

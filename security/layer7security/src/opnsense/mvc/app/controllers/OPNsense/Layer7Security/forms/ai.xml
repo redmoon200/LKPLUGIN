@@ -1,0 +1,20 @@
+<form>
+    <field>
+        <id>layer7security.general.aiEnabled</id>
+        <label>Enable AI service control</label>
+        <type>checkbox</type>
+        <help>Identify AI services (ChatGPT, Claude, Gemini, Copilot and more) by TLS/QUIC server name and DNS, tag their traffic, and apply the rules below. The service list is the catalog shipped with the plugin; nDPI 5 does not know these services.</help>
+    </field>
+    <field>
+        <id>layer7security.general.aiDefault</id>
+        <label>Default action</label>
+        <type>dropdown</type>
+        <help>Applies to every catalog service that has no rule below (or whose rule does not match the client).</help>
+    </field>
+    <field>
+        <id>layer7security.general.aiQuic</id>
+        <label>QUIC (HTTP/3)</label>
+        <type>dropdown</type>
+        <help>AI services increasingly use QUIC over UDP 443. Dropping QUIC makes browsers fall back to TCP/TLS, where the server name is visible and the connection can be inspected. Applies to the monitored interfaces.</help>
+    </field>
+</form>

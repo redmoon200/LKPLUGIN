@@ -61,6 +61,11 @@ class DashboardController extends ApiControllerBase
         return $this->query('countries');
     }
 
+    public function aiAction()
+    {
+        return $this->query('ai');
+    }
+
     public function devicesAction()
     {
         return $this->query('devices');
