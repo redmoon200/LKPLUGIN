@@ -98,6 +98,35 @@ def devices(con, period):
     return {'rows': out}
 
 
+def ai_catalog():
+    try:
+        with open('/usr/local/share/layer7security/ai_services.json') as f:
+            return {x['id']: x for x in json.load(f)}
+    except (OSError, ValueError, KeyError):
+        return {}
+
+
+def ai_usage(con, since):
+    """per AI service: flows, clients, volume, blocks; plus the busiest client/service pairs"""
+    names = ai_catalog()
+    svc = rows(con, "SELECT ai, COUNT(*) AS flows, COUNT(DISTINCT client) AS clients,"
+                    " COALESCE(SUM(bytes_up),0) AS up, COALESCE(SUM(bytes_down),0) AS down,"
+                    " SUM(action='block') AS blocked, MAX(ts_end) AS last FROM flows"
+                    " WHERE ai IS NOT NULL AND ai != '' AND ts_end >= ? GROUP BY ai ORDER BY (up+down) DESC",
+               (since,))
+    for r in svc:
+        r['name'] = names.get(r['ai'], {}).get('name', r['ai'])
+        r['blocked'] = r['blocked'] or 0
+    pairs = rows(con, "SELECT client, ai, COUNT(*) AS flows, COALESCE(SUM(bytes_up),0) AS up,"
+                      " COALESCE(SUM(bytes_down),0) AS down, SUM(action='block') AS blocked, MAX(ts_end) AS last"
+                      " FROM flows WHERE ai IS NOT NULL AND ai != '' AND ts_end >= ?"
+                      " GROUP BY client, ai ORDER BY last DESC LIMIT 100", (since,))
+    for r in pairs:
+        r['name'] = names.get(r['ai'], {}).get('name', r['ai'])
+        r['blocked'] = r['blocked'] or 0
+    return {'services': svc, 'clients': pairs, 'catalog': len(names)}
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else ''
     if cmd == 'engine':
@@ -139,7 +168,7 @@ def main():
         cond = ' AND '.join(where)
         total = con.execute('SELECT COUNT(*) FROM flows WHERE ' + cond, args).fetchone()[0]
         data = rows(con, 'SELECT id, ts_start, ts_end, iface, l4, client, server, cport, sport, master, app,'
-                         ' category, host, bytes_up, bytes_down, action, policy, country FROM flows WHERE ' + cond +
+                         ' category, host, bytes_up, bytes_down, action, policy, country, ai FROM flows WHERE ' + cond +
                     ' ORDER BY ts_end DESC LIMIT ? OFFSET ?', args + [limit, offset])
         print(json.dumps({'rows': data, 'total': total}))
         return
@@ -150,7 +179,9 @@ def main():
     if con is None:
         print(json.dumps({'error': 'no database yet'}))
         return
-    if cmd == 'devices':
+    if cmd == 'ai':
+        out = ai_usage(con, since)
+    elif cmd == 'devices':
         out = devices(con, max(period, 3600))
     elif cmd == 'countries':
         out = {'rows': rows(con, "SELECT country, COUNT(*) AS flows, SUM(bytes_up+bytes_down) AS bytes"

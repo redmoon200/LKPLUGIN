@@ -54,6 +54,8 @@ store_open(const char *path)
 		return -1;
 	/* older databases lack the country column; failure just means it exists */
 	sqlite3_exec(db, "ALTER TABLE flows ADD COLUMN country TEXT", NULL, NULL, NULL);
+	sqlite3_exec(db, "ALTER TABLE flows ADD COLUMN ai TEXT", NULL, NULL, NULL);
+	sqlite3_exec(db, "CREATE INDEX IF NOT EXISTS flows_ai ON flows(ai)", NULL, NULL, NULL);
 	exec("CREATE TABLE IF NOT EXISTS devices("
 	    "ip TEXT, mac TEXT, iface TEXT, first_seen INTEGER, last_seen INTEGER,"
 	    "hits INTEGER DEFAULT 0, PRIMARY KEY(ip, mac, iface))");
@@ -69,10 +71,10 @@ store_open(const char *path)
 
 	if (sqlite3_prepare_v2(db,
 	    "INSERT INTO flows(ts_start,ts_end,iface,l4,client,server,cport,sport,master,app,"
-	    "category,host,action,policy,country) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", -1, &st_ins, NULL) != SQLITE_OK ||
+	    "category,host,action,policy,country,ai) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", -1, &st_ins, NULL) != SQLITE_OK ||
 	    sqlite3_prepare_v2(db,
 	    "UPDATE flows SET ts_end=?,bytes_up=?,bytes_down=?,pkts_up=?,pkts_down=?,master=?,"
-	    "app=?,category=?,host=?,action=?,policy=? WHERE id=?", -1, &st_upd, NULL) != SQLITE_OK ||
+	    "app=?,category=?,host=?,action=?,policy=?,ai=? WHERE id=?", -1, &st_upd, NULL) != SQLITE_OK ||
 	    sqlite3_prepare_v2(db,
 	    "INSERT INTO events(ts,type,client,server,app,category,host,policy,detail)"
 	    " VALUES(?,?,?,?,?,?,?,?,?)", -1, &st_evt, NULL) != SQLITE_OK) {
@@ -126,7 +128,7 @@ bind_text(sqlite3_stmt *s, int i, const char *v)
 uint64_t
 store_flow_insert(const char *iface, int l4, const char *cli, const char *srv, int cport,
     int sport, const char *master, const char *app, const char *cat, const char *host,
-    time_t t0, const char *action, const char *policy, const char *country)
+    time_t t0, const char *action, const char *policy, const char *country, const char *ai)
 {
 	if (!db)
 		return 0;
@@ -147,6 +149,7 @@ store_flow_insert(const char *iface, int l4, const char *cli, const char *srv, i
 	bind_text(st_ins, 13, action);
 	bind_text(st_ins, 14, policy);
 	bind_text(st_ins, 15, country);
+	bind_text(st_ins, 16, ai);
 	if (sqlite3_step(st_ins) != SQLITE_DONE) {
 		l7_log("insert flow: %s", sqlite3_errmsg(db));
 		return 0;
@@ -158,7 +161,7 @@ store_flow_insert(const char *iface, int l4, const char *cli, const char *srv, i
 void
 store_flow_update(uint64_t id, time_t t1, uint64_t bu, uint64_t bd, uint64_t pu, uint64_t pd,
     const char *master, const char *app, const char *cat, const char *host,
-    const char *action, const char *policy)
+    const char *action, const char *policy, const char *ai)
 {
 	if (!db || id == 0)
 		return;
@@ -175,7 +178,8 @@ store_flow_update(uint64_t id, time_t t1, uint64_t bu, uint64_t bd, uint64_t pu,
 	bind_text(st_upd, 9, host);
 	bind_text(st_upd, 10, action);
 	bind_text(st_upd, 11, policy);
-	sqlite3_bind_int64(st_upd, 12, (sqlite3_int64)id);
+	bind_text(st_upd, 12, ai);
+	sqlite3_bind_int64(st_upd, 13, (sqlite3_int64)id);
 	if (sqlite3_step(st_upd) != SQLITE_DONE)
 		l7_log("update flow: %s", sqlite3_errmsg(db));
 }

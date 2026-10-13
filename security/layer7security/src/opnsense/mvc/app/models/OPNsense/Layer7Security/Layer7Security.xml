@@ -1,6 +1,6 @@
 <model>
     <mount>//OPNsense/layer7security</mount>
-    <version>1.1.0</version>
+    <version>1.3.0</version>
     <description>Layer 7 Security: application visibility, policies and DNS filtering</description>
     <items>
         <general>
@@ -110,7 +110,97 @@
                 <Mask>/^https?:\/\/[A-Za-z0-9.:\/_-]{1,200}$/</Mask>
                 <ValidationMessage>Enter an http(s) base URL that serves ip2country-v4.tsv.gz and ip2country-v6.tsv.gz, or leave empty for iptoasn.com.</ValidationMessage>
             </geoSource>
+            <aiEnabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </aiEnabled>
+            <aiDefault type="OptionField">
+                <Default>monitor</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <allow>Allow (tag and count only)</allow>
+                    <monitor>Monitor (tag, count and log)</monitor>
+                    <block>Block</block>
+                </OptionValues>
+            </aiDefault>
+            <aiQuic type="OptionField">
+                <Default>off</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Do not touch QUIC</off>
+                    <ai>Block QUIC (UDP 443) to AI services</ai>
+                    <all>Block all QUIC (UDP 443)</all>
+                </OptionValues>
+            </aiQuic>
         </general>
+        <ai>
+            <service type="ArrayField">
+                <enabled type="BooleanField">
+                    <Default>1</Default>
+                    <Required>Y</Required>
+                </enabled>
+                <service type=".\AiServiceField">
+                    <Required>Y</Required>
+                </service>
+                <action type="OptionField">
+                    <Default>monitor</Default>
+                    <Required>Y</Required>
+                    <OptionValues>
+                        <allow>Allow (tag and count only)</allow>
+                        <monitor>Monitor (tag, count and log)</monitor>
+                        <block>Block</block>
+                    </OptionValues>
+                </action>
+                <inspect type="BooleanField">
+                    <Default>0</Default>
+                    <Required>Y</Required>
+                </inspect>
+                <sources type="NetworkField">
+                    <Required>N</Required>
+                    <asList>Y</asList>
+                    <WildcardEnabled>N</WildcardEnabled>
+                    <ValidationMessage>Enter IP addresses or networks (CIDR), separated by commas.</ValidationMessage>
+                </sources>
+                <users type="ModelRelationField">
+                    <Model>
+                        <user>
+                            <source>OPNsense.Layer7Security.Layer7Security</source>
+                            <items>users.user</items>
+                            <display>name</display>
+                        </user>
+                    </Model>
+                    <Required>N</Required>
+                    <multiple>Y</multiple>
+                </users>
+                <days type="OptionField">
+                    <Default>sun,mon,tue,wed,thu,fri,sat</Default>
+                    <Required>Y</Required>
+                    <multiple>Y</multiple>
+                    <OptionValues>
+                        <mon>Monday</mon>
+                        <tue>Tuesday</tue>
+                        <wed>Wednesday</wed>
+                        <thu>Thursday</thu>
+                        <fri>Friday</fri>
+                        <sat>Saturday</sat>
+                        <sun>Sunday</sun>
+                    </OptionValues>
+                </days>
+                <startTime type="TextField">
+                    <Default>00:00</Default>
+                    <Required>Y</Required>
+                    <Mask>/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/</Mask>
+                    <ValidationMessage>Enter a time as HH:MM (24 hour).</ValidationMessage>
+                </startTime>
+                <endTime type="TextField">
+                    <Default>00:00</Default>
+                    <Required>Y</Required>
+                    <Mask>/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/</Mask>
+                    <ValidationMessage>Enter a time as HH:MM (24 hour).</ValidationMessage>
+                </endTime>
+                <description type="DescriptionField"/>
+            </service>
+        </ai>
         <bindings>
             <binding type="ArrayField">
                 <enabled type="BooleanField">
@@ -187,6 +277,39 @@
                 <description type="DescriptionField"/>
             </policy>
         </geo>
+        <audit>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </enabled>
+            <retentionDays type="IntegerField">
+                <Default>365</Default>
+                <Required>Y</Required>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>3650</MaximumValue>
+                <ValidationMessage>Retention must be between 1 and 3650 days.</ValidationMessage>
+            </retentionDays>
+            <syslogLocal type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </syslogLocal>
+            <syslogTarget type="TextField">
+                <Required>N</Required>
+                <Mask>/^[A-Za-z0-9.-]{1,200}(:[0-9]{1,5})?$/</Mask>
+                <ValidationMessage>Enter a host name or address with an optional port, for example 192.168.1.50:514.</ValidationMessage>
+            </syslogTarget>
+            <noticeText type="TextField">
+                <Required>N</Required>
+                <Mask>/^[^&lt;&gt;]{0,2000}$/s</Mask>
+                <ValidationMessage>The notice may not contain angle brackets and is limited to 2000 characters.</ValidationMessage>
+            </noticeText>
+            <privacyAckBy type="TextField">
+                <Required>N</Required>
+            </privacyAckBy>
+            <privacyAckAt type="TextField">
+                <Required>N</Required>
+            </privacyAckAt>
+        </audit>
         <users>
             <user type="ArrayField">
                 <name type="TextField">

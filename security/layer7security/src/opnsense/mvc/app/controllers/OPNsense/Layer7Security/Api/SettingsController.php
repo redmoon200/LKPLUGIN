@@ -10,11 +10,32 @@ namespace OPNsense\Layer7Security\Api;
 
 use OPNsense\Base\ApiMutableModelControllerBase;
 use OPNsense\Core\Backend;
+use OPNsense\Core\Config;
 
 class SettingsController extends ApiMutableModelControllerBase
 {
     protected static $internalModelName = 'layer7security';
     protected static $internalModelClass = '\OPNsense\Layer7Security\Layer7Security';
+
+    /** like the stock set action, but the audit section is only writable through the audit API */
+    public function setAction()
+    {
+        $result = ['result' => 'failed'];
+        if ($this->request->isPost()) {
+            Config::getInstance()->lock();
+            $mdl = $this->getModel();
+            $post = $this->request->getPost(static::$internalModelName);
+            if (is_array($post)) {
+                unset($post['audit']);
+            }
+            $mdl->setNodes($post);
+            $result = $this->validate();
+            if (empty($result['result'])) {
+                return $this->save(false, true);
+            }
+        }
+        return $result;
+    }
 
     public function searchPolicyAction()
     {
@@ -138,6 +159,37 @@ class SettingsController extends ApiMutableModelControllerBase
     public function toggleGeoAction($uuid, $enabled = null)
     {
         return $this->toggleBase('geo.policy', $uuid, $enabled);
+    }
+
+    public function searchAiAction()
+    {
+        return $this->searchBase('ai.service', ['enabled', 'service', 'action', 'inspect', 'sources', 'users',
+            'days', 'startTime', 'endTime', 'description'], 'service');
+    }
+
+    public function getAiAction($uuid = null)
+    {
+        return $this->getBase('aiservice', 'ai.service', $uuid);
+    }
+
+    public function addAiAction()
+    {
+        return $this->addBase('aiservice', 'ai.service');
+    }
+
+    public function setAiAction($uuid)
+    {
+        return $this->setBase('aiservice', 'ai.service', $uuid);
+    }
+
+    public function delAiAction($uuid)
+    {
+        return $this->delBase('ai.service', $uuid);
+    }
+
+    public function toggleAiAction($uuid, $enabled = null)
+    {
+        return $this->toggleBase('ai.service', $uuid, $enabled);
     }
 
     /** rebuild the application/category catalog from the installed nDPI */

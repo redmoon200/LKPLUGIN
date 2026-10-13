@@ -46,6 +46,10 @@ add_policy() { api POST /api/layer7security/settings/add_policy "$1" >/dev/null;
 apply() { api POST /api/layer7security/service/reconfigure | grep -q '"ok"' && sleep 3; }
 ALLDAYS='"days":"sun,mon,tue,wed,thu,fri,sat","startTime":"00:00","endTime":"00:00"'
 
+# E2E_ONLY="ai geo" runs just those sections (setup always runs); no value runs everything
+want() { [ -z "$E2E_ONLY" ] || [ "$1" = setup ] || echo " $E2E_ONLY " | grep -q " $1 "; }
+
+if want setup; then
 echo "== setup"
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"enabled":"1","interfaces":"lan","enforce":"1","dnsFilter":"0","dnsCategories":"","dnsBlock":"","dnsAllow":""}}}' >/dev/null
 clear_policies
@@ -53,6 +57,9 @@ apply
 is_running() { api GET /api/layer7security/service/status | grep -q '"running"'; }
 check "engine is running" is_running
 
+fi
+
+if want class; then
 echo "== classification"
 reaches https://www.wikipedia.org >/dev/null; reaches https://github.com >/dev/null; sleep 6
 apps=$(api GET "/api/layer7security/dashboard/apps?period=300" | jget "[r['app'] for r in d['rows']]")
@@ -61,6 +68,9 @@ check "dashboard lists observed applications ($apps)" has_apps
 flows_found() { api POST /api/layer7security/flows/search '{"current":1,"rowCount":10,"searchPhrase":""}' | python -c "import json,sys; sys.exit(0 if json.load(sys.stdin)['total']>0 else 1)"; }
 check "flows search returns rows" flows_found
 
+fi
+
+if want app; then
 echo "== block by application (YouTube) for the LAN interface"
 add_policy "{\"policy\":{\"enabled\":\"1\",\"name\":\"t-app\",\"sequence\":\"10\",\"action\":\"block\",\"interfaces\":\"lan\",\"applications\":\"YouTube\",$ALLDAYS}}"
 apply
@@ -71,6 +81,9 @@ check "pf table filled" table_filled
 dash_blocks() { api GET '/api/layer7security/dashboard/blocks?period=300' | jget "len(d['rows'])" | grep -qv '^0'; }
 check "block shows on dashboard" dash_blocks
 
+fi
+
+if want user; then
 echo "== block by category for a named user"
 clear_policies
 api POST /api/layer7security/settings/add_user '{"user":{"name":"alice","addresses":"10.77.0.2"}}' >/dev/null
@@ -80,6 +93,9 @@ apply
 check "social network blocked for user alice" blocked https://www.reddit.com
 check "other traffic unaffected" reaches https://www.wikipedia.org
 
+fi
+
+if want host; then
 echo "== block by host name"
 clear_policies
 add_policy "{\"policy\":{\"enabled\":\"1\",\"name\":\"t-host\",\"sequence\":\"10\",\"action\":\"block\",\"interfaces\":\"lan\",\"hosts\":\"github.com\",$ALLDAYS}}"
@@ -87,6 +103,9 @@ apply
 check "github.com blocked by host name" blocked https://github.com
 check "wikipedia still reachable" reaches https://www.wikipedia.org
 
+fi
+
+if want allow; then
 echo "== allow policy exempts earlier-sequence match order"
 clear_policies
 add_policy "{\"policy\":{\"enabled\":\"1\",\"name\":\"t-allow\",\"sequence\":\"5\",\"action\":\"allow\",\"interfaces\":\"lan\",\"hosts\":\"github.com\",$ALLDAYS}}"
@@ -95,6 +114,9 @@ apply
 check "allow policy wins for github.com" reaches https://github.com
 check "category block hits other web sites" blocked https://www.wikipedia.org
 
+fi
+
+if want schedule; then
 echo "== schedule"
 clear_policies
 now=$(opn "date +%H:%M")
@@ -109,6 +131,9 @@ add_policy "{\"policy\":{\"enabled\":\"1\",\"name\":\"t-on\",\"sequence\":\"10\"
 apply
 check "inside the window github.com is blocked ($on_s-$on_e, now $now)" blocked https://github.com
 
+fi
+
+if want vlan; then
 echo "== per-VLAN policy (needs the lab VLAN: lab/make-vlan.php + client ens4.10)"
 if [ "$(cli 'ip -br a show ens4.10 2>/dev/null | wc -l' | tr -d '')" = "1" ]; then
 	clear_policies
@@ -137,8 +162,11 @@ else
 	echo "  SKIP no VLAN on the client"
 fi
 
+fi
+
+if want geo; then
 echo "== GeoIP (needs internet; destinations in DE, FR and the US)"
-clear_geo() { for u in $(api GET /api/layer7security/settings/search_geo | python -c "import json,sys; [print(r['uuid']) for r in json.load(sys.stdin)['rows']]" | tr -d ''); do api POST "/api/layer7security/settings/del_geo/$u" >/dev/null; done; }
+clear_geo() { for u in $(api GET /api/layer7security/settings/search_geo | python -c "import json,sys; [print(r['uuid']) for r in json.load(sys.stdin)['rows']]" | tr -d ''); do api POST "/api/layer7security/settings/del_geo/$u" >/dev/null; done; }
 geo_url_ok() { [ "$(fetch "$1")" != "000" ]; }
 geo_blocked() { for _i in 1 2; do [ "$(fetch "$1")" != "000" ] && return 1; done; return 0; }
 clear_policies; clear_geo
@@ -177,18 +205,21 @@ fi
 clear_geo
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"geoEnabled":"0"}}}' >/dev/null
 
+fi
+
+if want mac; then
 echo "== MAC binding (client ens4 + throw-away network namespaces)"
 clear_policies
 cli "cat > /tmp/spoof.sh" < "$(dirname "$0")/../lab/spoof.sh"
 cli 'sudo mkdir -p /etc/netns/spoof && echo "nameserver 10.77.0.1" | sudo tee /etc/netns/spoof/resolv.conf >/dev/null'
-CMAC=$(cli 'cat /sys/class/net/ens4/address' | tr -d '')
-clear_bindings() { for u in $(api GET /api/layer7security/settings/search_binding | python -c "import json,sys; [print(r['uuid']) for r in json.load(sys.stdin)['rows']]" | tr -d ''); do api POST "/api/layer7security/settings/del_binding/$u" >/dev/null; done; }
+CMAC=$(cli 'cat /sys/class/net/ens4/address' | tr -d '')
+clear_bindings() { for u in $(api GET /api/layer7security/settings/search_binding | python -c "import json,sys; [print(r['uuid']) for r in json.load(sys.stdin)['rows']]" | tr -d ''); do api POST "/api/layer7security/settings/del_binding/$u" >/dev/null; done; }
 clear_bindings
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"interfaces":"lan","macMode":"protect","macInterfaces":"lan","macStaticArp":"0"}}}' >/dev/null
 api POST /api/layer7security/settings/add_binding "{\"binding\":{\"enabled\":\"1\",\"name\":\"t-client\",\"mac\":\"$CMAC\",\"ip\":\"10.77.0.2\",\"interface\":\"\"}}" >/dev/null
 api POST /api/layer7security/settings/add_binding '{"binding":{"enabled":"1","name":"t-phantom","mac":"bc:24:11:99:99:99","ip":"10.77.0.50","interface":""}}' >/dev/null
 apply
-ns() { cli "sh /tmp/spoof.sh $1 $2" | tr -d ''; }
+ns() { cli "sh /tmp/spoof.sh $1 $2" | tr -d ''; }
 ns_ok() { ns "$1" "$2" | grep -q "http 200"; }
 ns_dropped() { ns "$1" "$2" | grep -q "http 000"; }
 anchor_loaded() { opn 'pfctl -a l7sec_ether -s ether' | grep -q "from 10.77.0.50"; }
@@ -224,6 +255,52 @@ anchor_gone() { ! opn 'pfctl -a l7sec_ether -s ether' | grep -q "ether"; }
 check "off: the anchor is empty again" anchor_gone
 check "off: the client still works" reaches https://www.wikipedia.org
 
+fi
+
+if want ai; then
+echo "== AI services (identification, block/allow/monitor, QUIC)"
+clear_policies
+clear_ai() { for u in $(api GET /api/layer7security/settings/search_ai | python -c "import json,sys; [print(r['uuid']) for r in json.load(sys.stdin)['rows']]" | tr -d ''); do api POST "/api/layer7security/settings/del_ai/$u" >/dev/null; done; }
+clear_ai
+cli "cat > /tmp/udp.py" < "$(dirname "$0")/../lab/udp443.py"
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"interfaces":"lan","aiEnabled":"1","aiDefault":"monitor","aiQuic":"off"}}}' >/dev/null
+apply
+ai_up() { [ "$(fetch "$1")" != "000" ]; }
+ai_down() { for _i in 1 2; do [ "$(fetch "$1")" != "000" ] && return 1; sleep 1; done; return 0; }
+ai_up https://huggingface.co; ai_up https://claude.ai; ai_up https://chatgpt.com; sleep 6
+ai_services() { api GET '/api/layer7security/dashboard/ai?period=300' | python -c "import json,sys; s={r['ai'] for r in json.load(sys.stdin)['services']}; sys.exit(0 if {'huggingface','claude','chatgpt'} <= s else 1)"; }
+check "monitor: ChatGPT, Claude and Hugging Face are identified by server name" ai_services
+ai_event() { api GET /api/layer7security/flows/events | python -c "import json,sys; sys.exit(0 if any(e['type']=='ai-use' and e['app']=='claude' for e in json.load(sys.stdin)['events']) else 1)"; }
+check "an ai-use event is logged" ai_event
+api POST /api/layer7security/settings/add_ai '{"aiservice":{"enabled":"1","service":"claude","action":"block","inspect":"0","sources":"","users":"","days":"sun,mon,tue,wed,thu,fri,sat","startTime":"00:00","endTime":"00:00"}}' >/dev/null
+apply
+check "block rule: claude.ai dropped" ai_down https://claude.ai
+check "block rule: api.anthropic.com dropped (same service)" ai_down https://api.anthropic.com
+check "block rule: other AI services unaffected" ai_up https://huggingface.co
+api POST /api/layer7security/settings/add_ai '{"aiservice":{"enabled":"1","service":"chatgpt","action":"allow","inspect":"0","sources":"","users":"","days":"sun,mon,tue,wed,thu,fri,sat","startTime":"00:00","endTime":"00:00"}}' >/dev/null
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"aiDefault":"block"}}}' >/dev/null
+apply
+check "default block: an explicit allow rule keeps ChatGPT reachable" ai_up https://chatgpt.com
+check "default block: other AI services dropped" ai_down https://huggingface.co
+check "default block: ordinary sites unaffected" reaches https://www.wikipedia.org
+clear_ai
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"aiDefault":"monitor","aiQuic":"all"}}}' >/dev/null
+apply
+quic_pk() { opn "sh -c 'pfctl -s labels 2>/dev/null | grep l7ai_quic'" | awk '{print $3}'; }
+WK=$(cli 'dig +short www.wikipedia.org @10.77.0.1 | grep -E "^[0-9.]+$" | head -1' | tr -d '')
+q0=$(quic_pk); cli "python3 /tmp/udp.py $WK"; sleep 1; q1=$(quic_pk)
+check "QUIC block (all): UDP/443 datagrams are dropped" test "$((q1 - q0))" -ge 5
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"aiQuic":"ai"}}}' >/dev/null
+apply
+HF=$(cli 'sudo resolvectl flush-caches; dig +short huggingface.co @10.77.0.1 | grep -E "^[0-9.]+$" | head -1' | tr -d ''); sleep 2
+q0=$(quic_pk); cli "python3 /tmp/udp.py $HF"; sleep 1; q1=$(quic_pk); cli "python3 /tmp/udp.py $WK"; sleep 1; q2=$(quic_pk)
+check "QUIC block (AI only): datagrams to an AI service are dropped" test "$((q1 - q0))" -ge 5
+check "QUIC block (AI only): other UDP/443 traffic is not" test "$((q2 - q1))" -eq 0
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"aiEnabled":"0","aiQuic":"off","aiDefault":"monitor"}}}' >/dev/null
+
+fi
+
+if want dns; then
 echo "== DNS filtering, global and per group"
 clear_policies
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"dnsFilter":"1","dnsMode":"nxdomain","dnsCategories":"ads","dnsBlock":"blocked-test.example","dnsAllow":""}}}' >/dev/null
@@ -237,11 +314,16 @@ check "group B domain not blocked for group A client" test "$(dns_status example
 check "normal lookup works" test "$(dns_status github.com)" = NOERROR
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"dnsFilter":"0","dnsCategories":"","dnsBlock":""}}}' >/dev/null
 
+fi
+
+if want cleanup; then
 echo "== cleanup"
 clear_policies
 apply
 no_rules() { ! opn 'pfctl -sr' | grep -q l7_blk; }
 check "no policy left in pf" no_rules
+
+fi
 
 echo
 echo "passed $PASS, failed $FAIL"

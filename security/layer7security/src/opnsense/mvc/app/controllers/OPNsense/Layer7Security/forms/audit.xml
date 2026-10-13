@@ -1,0 +1,32 @@
+<form>
+    <field>
+        <id>layer7security.audit.enabled</id>
+        <label>Enable the AI audit log</label>
+        <type>checkbox</type>
+        <help>Records AI service use (and, with content inspection, masked detections) in a tamper-evident hash chain. Requires the privacy notice to be acknowledged first (Privacy tab).</help>
+    </field>
+    <field>
+        <id>layer7security.audit.retentionDays</id>
+        <label>Retention (days)</label>
+        <type>text</type>
+        <help>Older records are deleted. The chain stays verifiable; the deletion is recorded.</help>
+    </field>
+    <field>
+        <id>layer7security.audit.syslogLocal</id>
+        <label>Send to local syslog</label>
+        <type>checkbox</type>
+        <help>Every record is also written to syslog (facility local5, tag l7ai-audit) as one JSON line including its hash, so it appears under System > Log Files and can be forwarded with Logging targets.</help>
+    </field>
+    <field>
+        <id>layer7security.audit.syslogTarget</id>
+        <label>Remote syslog target</label>
+        <type>text</type>
+        <help>host:port (UDP, RFC 5424). An independent copy outside this firewall is what makes tampering provable: the hash chain alone cannot protect against someone who can rewrite the whole database.</help>
+    </field>
+    <field>
+        <id>layer7security.audit.noticeText</id>
+        <label>Organisation notice</label>
+        <type>textbox</type>
+        <help>Optional text added to the privacy notice, for example a link to your acceptable-use policy. Plain text only.</help>
+    </field>
+</form>

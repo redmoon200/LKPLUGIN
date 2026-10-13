@@ -1,0 +1,24 @@
+PRIVACY NOTICE - monitoring of AI service use and AI content inspection
+
+This firewall can record which AI services (for example ChatGPT, Claude or Gemini) are used on this network, by which device or person, and when. When content inspection is enabled it can additionally examine what is sent to the selected AI services, only to detect payment card numbers, national identity numbers, API keys and secrets, and source code.
+
+What is recorded
+- The AI service, the time, the device address and, when configured, the name of the user it belongs to.
+- When inspection detects sensitive data: the kind of data found and a short masked excerpt in which the sensitive value is replaced by asterisks. Full content is never stored. For source code only a line count and language are recorded.
+
+What is not done
+- Only the AI services selected for inspection are decrypted. All other encrypted traffic is passed through untouched.
+- Message contents are not kept, searched or reported beyond the masked detections described above.
+
+Who can see it
+- Only administrators with the AI Audit privilege can view, export or verify the log. Every such access is itself recorded in the log.
+
+How long it is kept
+- For the retention period configured on the AI Audit page, then it is deleted.
+
+Before you enable these features you must make sure that
+- Everyone whose traffic is affected has been told about this monitoring in a way that satisfies the law and the policies that apply to your organisation (employee notice, acceptable-use policy, consent where required).
+- The inspection certificate authority is installed only on devices you own or manage, and only with the knowledge of their users.
+- Highly sensitive categories (banking, health, legal, union, personal accounts) are never added to the inspected services.
+
+This text is a template, not legal advice. Adapt it with your legal counsel and publish it to the people concerned.

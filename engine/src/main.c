@@ -54,6 +54,7 @@ typedef struct flow {
 	char iface[16];
 	char master[40], app[48], cat[40], host[96], policy[64];
 	char country[4];	/* server country, empty when unknown or local */
+	char ai[24];		/* AI service id, empty for other traffic */
 	struct ndpi_flow_struct *nf;
 	uint8_t dirty;
 } flow_t;
@@ -248,7 +249,7 @@ flow_persist(flow_t *f, int final)
 		addr_str(&f->cli, s, sizeof(s));
 		addr_str(&f->srv, d, sizeof(d));
 		f->db_id = store_flow_insert(f->iface, f->l4, s, d, f->cport, f->sport, f->master,
-		    f->app, f->cat, f->host, (time_t)(f->t_first_ms / 1000), act, f->policy, f->country);
+		    f->app, f->cat, f->host, (time_t)(f->t_first_ms / 1000), act, f->policy, f->country, f->ai);
 		f->t_written = now;
 		if (f->db_id == 0)
 			return;
@@ -256,9 +257,68 @@ flow_persist(flow_t *f, int final)
 		return;
 	}
 	store_flow_update(f->db_id, (time_t)(f->t_last_ms / 1000), f->bytes[0], f->bytes[1],
-	    f->pkts[0], f->pkts[1], f->master, f->app, f->cat, f->host, act, f->policy);
+	    f->pkts[0], f->pkts[1], f->master, f->app, f->cat, f->host, act, f->policy, f->ai);
 	f->t_written = now;
 	f->dirty = 0;
+}
+
+/* one "ai-use" / "ai-block" event per client and AI service every five minutes */
+static int
+ai_event_due(const char *cli, const char *ai)
+{
+	static struct {
+		char key[96];
+		time_t ts;
+	} t[256];
+	char key[96];
+	time_t now = time(NULL);
+	uint32_t h = 2166136261u;
+	size_t i, slot;
+	int k;
+
+	snprintf(key, sizeof(key), "%s|%s", cli, ai);
+	h = fnv(key, strlen(key), h);
+	slot = h % 256;
+	for (k = 0; k < 8; k++) {
+		i = (slot + (size_t)k) % 256;
+		if (t[i].key[0] == '\0' || strcmp(t[i].key, key) == 0) {
+			int due = t[i].key[0] == '\0' || now - t[i].ts >= 300;
+
+			if (due) {
+				snprintf(t[i].key, sizeof(t[i].key), "%s", key);
+				t[i].ts = now;
+			}
+			return due;
+		}
+	}
+	/* crowded: overwrite the home slot */
+	snprintf(t[slot].key, sizeof(t[slot].key), "%s", key);
+	t[slot].ts = now;
+	return 1;
+}
+
+/* AI service matched by a flow: tag it, log it, steer it to the proxy / off QUIC */
+static void
+ai_flow_actions(flow_t *f, const policy_t *p)
+{
+	char s[64], d[64], detail[96];
+
+	addr_str(&f->cli, s, sizeof(s));
+	addr_str(&f->srv, d, sizeof(d));
+	if (ai_event_due(s, p->ai)) {
+		snprintf(detail, sizeof(detail), "%s %s%s", p->action == ACT_BLOCK ? "blocked" :
+		    p->action == ACT_ALLOW ? "allowed" : "monitored", f->l4 == IPPROTO_UDP ? "udp/" : "tcp/",
+		    f->l4 == IPPROTO_UDP ? "quic" : "tls");
+		store_event(p->action == ACT_BLOCK ? "ai-block" : "ai-use", s, d, p->ai, "AI", f->host,
+		    p->name, detail);
+	}
+	if (p->action == ACT_BLOCK)
+		return;
+	/* newly learned addresses kill the uninspected first connection so the retry is proxied */
+	if (p->inspect && cfg.ai_inspect && f->l4 == IPPROTO_TCP)
+		pf_add_table(&cfg, AI_TABLE_BUMP, &f->cli, &f->srv, 1, 1);
+	if (p->quic && cfg.ai_quic == 1)
+		pf_add_table(&cfg, AI_TABLE_QUIC, &f->cli, &f->srv, 1, f->l4 == IPPROTO_UDP);
 }
 
 static void
@@ -286,6 +346,10 @@ flow_decide(flow_t *f)
 	snprintf(f->policy, sizeof(f->policy), "%s", p->name);
 	f->action = (uint8_t)p->action;
 	f->dirty = 1;
+	if (p->ai[0]) {
+		snprintf(f->ai, sizeof(f->ai), "%s", p->ai);
+		ai_flow_actions(f, p);
+	}
 	if (p->action == ACT_BLOCK) {
 		char s[64], d[64];
 
@@ -597,6 +661,22 @@ dns_learn(const uint8_t *msg, int len, const addr_t *client)
 			dns_learned_total += (uint64_t)n;
 			l7_log("DNS-LEARN %s asked %s (app=%s cat=%s) -> %d address(es) to %s", c, name,
 			    *appname ? appname : "-", *catname ? catname : "-", n, p->table);
+		}
+	} else if (p != NULL && p->ai[0]) {
+		/* allowed / monitored AI service: steer it to the inspection proxy and off QUIC */
+		int nb = 0, nq = 0;
+
+		if (p->inspect && cfg.ai_inspect)
+			nb = pf_add_table(&cfg, AI_TABLE_BUMP, client, addrs, naddr, 1);
+		if (p->quic && cfg.ai_quic == 1)
+			nq = pf_add_table(&cfg, AI_TABLE_QUIC, client, addrs, naddr, 0);
+		if (nb + nq > 0) {
+			char c[64];
+
+			addr_str(client, c, sizeof(c));
+			dns_learned_total += (uint64_t)(nb + nq);
+			l7_log("DNS-LEARN %s asked %s (ai=%s) -> %d to proxy table, %d to quic table", c, name,
+			    p->ai, nb, nq);
 		}
 	}
 }

@@ -63,7 +63,7 @@ npolicies_block(void)
 	int i, n = 0;
 
 	for (i = 0; i < npols; i++)
-		if (pols[i].action == ACT_BLOCK)
+		if (pols[i].action == ACT_BLOCK || pols[i].inspect || pols[i].quic)
 			n++;
 	return n;
 }
@@ -301,7 +301,8 @@ pf_block(const config_t *c, const policy_t *p, const addr_t *cli, const addr_t *
  * pfctl call (no states exist yet, so nothing needs to be killed).
  */
 int
-pf_block_addrs(const config_t *c, const policy_t *p, const addr_t *cli, const addr_t *addrs, int n)
+pf_add_table(const config_t *c, const char *table, const addr_t *cli, const addr_t *addrs, int n,
+    int kill)
 {
 	enum { MAXA = 24 };
 	char names[MAXA][64];
@@ -312,7 +313,7 @@ pf_block_addrs(const config_t *c, const policy_t *p, const addr_t *cli, const ad
 	argv[argc++] = (char *)"pfctl";
 	argv[argc++] = (char *)"-q";
 	argv[argc++] = (char *)"-t";
-	argv[argc++] = (char *)p->table;
+	argv[argc++] = (char *)table;
 	argv[argc++] = (char *)"-T";
 	argv[argc++] = (char *)"add";
 	for (i = 0; i < n && added < MAXA; i++) {
@@ -320,7 +321,7 @@ pf_block_addrs(const config_t *c, const policy_t *p, const addr_t *cli, const ad
 		int slot = -1, dup = 0;
 
 		addr_str(&addrs[i], names[added], sizeof(names[added]));
-		snprintf(key, sizeof(key), "%s|%s", p->table, names[added]);
+		snprintf(key, sizeof(key), "%s|%s", table, names[added]);
 		for (j = 0; j < DEDUP; j++) {
 			if (strcmp(seen[j].key, key) == 0 && seen[j].until > now) {
 				dup = 1;
@@ -342,7 +343,8 @@ pf_block_addrs(const config_t *c, const policy_t *p, const addr_t *cli, const ad
 		return 0;
 	argv[argc] = NULL;
 	if (!c->enforce) {
-		blocks_total += (uint64_t)added;
+		if (strncmp(table, "l7_blk", 6) == 0)
+			blocks_total += (uint64_t)added;
 		return added;
 	}
 	{
@@ -352,18 +354,26 @@ pf_block_addrs(const config_t *c, const policy_t *p, const addr_t *cli, const ad
 		for (k = 0; k < added; k++)
 			if (addr_parse(names[k], &list[m]) == 0)
 				m++;
-		if (tbl_add(p->table, list, m) < 0 && run_pfctl(c, argv) != 0)
-			l7_log("add %s (%d addresses) failed", p->table, added);
+		if (tbl_add(table, list, m) < 0 && run_pfctl(c, argv) != 0)
+			l7_log("add %s (%d addresses) failed", table, added);
 		/*
 		 * The client may already have raced the answer and opened a
 		 * connection; established states bypass the block rule, so
 		 * drop them now.
 		 */
-		for (k = 0; k < m; k++)
-			kill_states(cli, &list[k]);
+		if (kill)
+			for (k = 0; k < m; k++)
+				kill_states(cli, &list[k]);
 	}
-	blocks_total += (uint64_t)added;
+	if (strncmp(table, "l7_blk", 6) == 0)
+			blocks_total += (uint64_t)added;
 	return added;
+}
+
+int
+pf_block_addrs(const config_t *c, const policy_t *p, const addr_t *cli, const addr_t *addrs, int n)
+{
+	return pf_add_table(c, p->table, cli, addrs, n, 1);
 }
 
 void
@@ -379,6 +389,17 @@ pf_expire_all(const config_t *c)
 
 		if (pols[i].action == ACT_BLOCK)
 			run_pfctl(c, argv);
+	}
+	{
+		char *tabs[] = { (char *)AI_TABLE_BUMP, (char *)AI_TABLE_QUIC };
+		size_t k;
+
+		for (k = 0; k < sizeof(tabs) / sizeof(tabs[0]); k++) {
+			char *argv[] = { (char *)"pfctl", (char *)"-q", (char *)"-t", tabs[k], (char *)"-T",
+			    (char *)"expire", ttl, NULL };
+
+			run_pfctl(c, argv);
+		}
 	}
 }
 
@@ -410,6 +431,17 @@ pf_flush_all(const config_t *c)
 
 		if (pols[i].action == ACT_BLOCK)
 			run_pfctl(c, argv);
+	}
+	{
+		char *tabs[] = { (char *)AI_TABLE_BUMP, (char *)AI_TABLE_QUIC };
+		size_t k;
+
+		for (k = 0; k < sizeof(tabs) / sizeof(tabs[0]); k++) {
+			char *argv[] = { (char *)"pfctl", (char *)"-q", (char *)"-t", tabs[k], (char *)"-T",
+			    (char *)"flush", NULL };
+
+			run_pfctl(c, argv);
+		}
 	}
 	memset(seen, 0, sizeof(seen));
 }
