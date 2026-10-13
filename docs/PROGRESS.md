@@ -221,8 +221,10 @@ cloud VM from 0.3.0 testing was removed.
 | `qm monitor 9101` screendump, QMP `sendkey` via `/var/tmp/lk-lab/type.py` | drive the VGA console during first configuration |
 | `qm snapshot 9101 phase6-before`, `qm snapshot 9102 phase6-before` | before phase 6 |
 | `qm snapshot 9101 phase7-before --description "before v0.3.0 package reinstall test"` | 2026-10-13 10:09 UTC, before removing the plugin and reinstalling from the 0.3.0 package; `qm listsnapshot 9101` to check |
+| `qm snapshot 9101 phase8-before`, `qm snapshot 9102 phase8-before`, `qm snapshot 9103 phase8-before` | 2026-10-13, before starting 0.4.0 (descriptions "before v0.4.0 console redesign", "before v0.4.0 feeds", "before v0.4.0") |
+| `qm snapshot 9101 phase9-before --description "before v0.4.0 package upgrade test"` | before building the 0.4.0 package and upgrading the lab firewall to it |
 
-No new `qm` commands were needed for 0.2.0 (no VM was created, resized or snapshotted). 0.3.0 needed the one snapshot above and no rollback.
+No new `qm` commands were needed for 0.2.0 (no VM was created, resized or snapshotted). 0.3.0 needed the one snapshot above and no rollback; 0.4.0 needed the snapshots above and no rollback.
 
 ## Rollbacks
 - **9101 rebuilt.** Cause: I imported the OPNsense `serial` image, which is install
