@@ -26,7 +26,9 @@ jobs:
         run: |
           python3 -m py_compile security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/stats.py \
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/feed_update.py \
-            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/geo.py \n            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/audit.py \n            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/dlp_rules.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/geo.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/audit.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/dlp_rules.py \
             cloud/server/build_feeds.py cloud/server/feedserver.py
 
       - name: XML well-formed
