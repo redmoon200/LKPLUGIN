@@ -398,6 +398,10 @@ class PolicyCompiler
         ) {
             return null;
         }
+        /* a name needs a dot or a wildcard ("com" or "x" alone would block whole top-level names), and "*" alone is everything */
+        if (!preg_match('/[a-z0-9]/', $v) || (strpos($v, '.') === false && strpbrk($v, '*?') === false)) {
+            return null;
+        }
         return $v;
     }
 
@@ -465,6 +469,56 @@ class PolicyCompiler
             return null;
         }
         return $bits === null ? $v : $v . '/' . $bits;
+    }
+
+    /** is the address inside the rule (a single address or a CIDR network) */
+    public static function ipInNet($rule, $ip)
+    {
+        if (strpos($rule, '/') === false) {
+            return strtolower($rule) === strtolower($ip);
+        }
+        [$net, $bits] = explode('/', $rule, 2);
+        $a = @inet_pton($net);
+        $b = @inet_pton($ip);
+        if ($a === false || $b === false || strlen($a) !== strlen($b)) {
+            return false;
+        }
+        $bits = (int)$bits;
+        $full = intdiv($bits, 8);
+        if ($full > 0 && substr($a, 0, $full) !== substr($b, 0, $full)) {
+            return false;
+        }
+        $rem = $bits % 8;
+        if ($rem === 0) {
+            return true;
+        }
+        $mask = (0xff << (8 - $rem)) & 0xff;
+        return (ord($a[$full]) & $mask) === (ord($b[$full]) & $mask);
+    }
+
+    /** every address configured on the firewall (cached for the request) */
+    public static function firewallAddresses()
+    {
+        static $cache = null;
+        if ($cache === null) {
+            $cache = ['127.0.0.1', '::1'];
+            $out = (string)@shell_exec('/sbin/ifconfig -a 2>/dev/null');
+            if (preg_match_all('/^\s+inet6? ([0-9a-f:.]+)(?:%\S+)?[\s]/mi', $out, $m)) {
+                $cache = array_values(array_unique(array_merge($cache, $m[1])));
+            }
+        }
+        return $cache;
+    }
+
+    /** does a blocking rule for this address or network include an address of the firewall itself */
+    public static function coversFirewall($ipOrNet)
+    {
+        foreach (self::firewallAddresses() as $own) {
+            if (self::ipInNet($ipOrNet, $own)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** host patterns per engine policy (the engine keeps 128 per policy) */
@@ -536,6 +590,9 @@ class PolicyCompiler
             if ($r['action'] === 'allow') {
                 $allow[$r['value']] = true;
                 continue;
+            }
+            if (self::coversFirewall($r['value'])) {
+                continue;       /* a block that includes the firewall's own address would cut off the management */
             }
             $key = implode(',', $r['sources']);
             $groups[$key]['sources'] = $r['sources'];

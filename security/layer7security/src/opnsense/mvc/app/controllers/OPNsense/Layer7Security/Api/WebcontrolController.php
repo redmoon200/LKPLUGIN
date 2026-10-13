@@ -24,18 +24,29 @@ class WebcontrolController extends ApiMutableModelControllerBase
 
     private const FIELDS = ['enabled', 'kind', 'value', 'action', 'sources', 'expires', 'origin', 'created', 'description'];
 
-    /** clean up what was typed in the dialog before it is validated (URLs become host names) */
+    /**
+     * Clean up what was typed in the dialog before it is validated (a pasted URL becomes a host name).
+     * Returns a validation error for names the engine would not use, or null when all is well.
+     */
     private function normalizePost()
     {
         if (isset($_POST['rule']) && is_array($_POST['rule'])) {
             $kind = (string)($_POST['rule']['kind'] ?? 'domain');
             $value = (string)($_POST['rule']['value'] ?? '');
             $clean = $kind === 'ip' ? PolicyCompiler::normalizeIp($value) : PolicyCompiler::normalizeSite($value);
-            if ($clean !== null) {
-                $_POST['rule']['value'] = $clean;
-            }
             unset($_POST['rule']['created'], $_POST['rule']['origin']);
+            if ($clean === null) {
+                return ['result' => 'failed', 'validations' => ['rule.value' => $kind === 'ip' ?
+                    'Enter an IP address or network such as 203.0.113.7 or 203.0.113.0/24.' :
+                    'Enter a website with a dot or a wildcard, such as example.com, *.example.com or *instagram.com.']];
+            }
+            if ($kind === 'ip' && (string)($_POST['rule']['action'] ?? 'block') === 'block' && PolicyCompiler::coversFirewall($clean)) {
+                return ['result' => 'failed', 'validations' => ['rule.value' =>
+                    'This address or network includes the firewall itself. Blocking it would cut off the management access.']];
+            }
+            $_POST['rule']['value'] = $clean;
         }
+        return null;
     }
 
     public function searchRuleAction()
@@ -62,13 +73,17 @@ class WebcontrolController extends ApiMutableModelControllerBase
 
     public function addRuleAction()
     {
-        $this->normalizePost();
+        if (($err = $this->normalizePost()) !== null) {
+            return $err;
+        }
         return $this->addBase('rule', 'webcontrol.rule', ['created' => (string)time(), 'origin' => 'manual']);
     }
 
     public function setRuleAction($uuid)
     {
-        $this->normalizePost();
+        if (($err = $this->normalizePost()) !== null) {
+            return $err;
+        }
         return $this->setBase('rule', 'webcontrol.rule', $uuid);
     }
 
@@ -114,6 +129,9 @@ class WebcontrolController extends ApiMutableModelControllerBase
             PolicyCompiler::normalizeSite((string)$this->request->getPost('value', 'string', ''));
         if ($value === null) {
             return ['result' => 'failed', 'message' => 'That is not a valid ' . ($kind === 'ip' ? 'IP address' : 'website') . '.'];
+        }
+        if ($kind === 'ip' && $action === 'block' && PolicyCompiler::coversFirewall($value)) {
+            return ['result' => 'failed', 'message' => 'That address belongs to the firewall itself. Blocking it would cut off the management access.'];
         }
         $minutes = max(0, min(525600, (int)$this->request->getPost('minutes', 'int', 0)));
         $source = trim((string)$this->request->getPost('source', 'string', ''));
@@ -171,6 +189,65 @@ class WebcontrolController extends ApiMutableModelControllerBase
         return $out;
     }
 
+    /**
+     * Add many websites or IP addresses at once: POST text="one per line (or comma separated)"
+     * action=block|allow. Entries that already exist with the same action are skipped.
+     */
+    public function bulkAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['result' => 'failed'];
+        }
+        $action = $this->request->getPost('action', 'string', 'block') === 'allow' ? 'allow' : 'block';
+        $source = trim((string)$this->request->getPost('source', 'string', ''));
+        if ($source !== '' && PolicyCompiler::normalizeIp($source) === null) {
+            return ['result' => 'failed', 'message' => 'The device address is not valid.'];
+        }
+        $items = preg_split('/[\s,;]+/', (string)$this->request->getPost('text', null, ''), -1, PREG_SPLIT_NO_EMPTY);
+        $items = array_slice($items ?: [], 0, 1000);
+        Config::getInstance()->lock();
+        $mdl = $this->getModel();
+        $have = [];
+        foreach ($mdl->webcontrol->rule->iterateItems() as $r) {
+            $have[(string)$r->kind . '|' . strtolower((string)$r->value) . '|' . (string)$r->action . '|' . (string)$r->sources] = true;
+        }
+        $added = 0;
+        $skipped = 0;
+        $invalid = [];
+        $now = time();
+        foreach ($items as $item) {
+            $ip = PolicyCompiler::normalizeIp($item);
+            $kind = $ip !== null ? 'ip' : 'domain';
+            $value = $ip ?? PolicyCompiler::normalizeSite($item);
+            if ($value === null) {
+                $invalid[] = substr($item, 0, 60);
+                continue;
+            }
+            if ($kind === 'ip' && $action === 'block' && PolicyCompiler::coversFirewall($value)) {
+                $invalid[] = $item . ' (the firewall itself)';
+                continue;
+            }
+            $key = $kind . '|' . $value . '|' . $action . '|' . $source;
+            if (isset($have[$key])) {
+                $skipped++;
+                continue;
+            }
+            $have[$key] = true;
+            $node = $mdl->webcontrol->rule->Add();
+            $node->setNodes(['enabled' => '1', 'kind' => $kind, 'value' => $value, 'action' => $action, 'sources' => $source,
+                'expires' => '0', 'origin' => 'import', 'created' => (string)$now, 'description' => 'imported']);
+            $added++;
+        }
+        $result = $this->validate();
+        if (!empty($result['validations'])) {
+            return ['result' => 'failed', 'message' => implode(' ', array_slice(array_values($result['validations']), 0, 3))];
+        }
+        if ($added > 0) {
+            $this->save(false, true);
+        }
+        return ['result' => 'saved', 'added' => $added, 'skipped' => $skipped, 'invalid' => array_slice($invalid, 0, 20)];
+    }
+
     /** which rules would match this website or address, and what happens to it */
     public function testAction()
     {
@@ -214,26 +291,7 @@ class WebcontrolController extends ApiMutableModelControllerBase
 
     private static function ipMatch($rule, $ip)
     {
-        if (strpos($rule, '/') === false) {
-            return $rule === $ip;
-        }
-        [$net, $bits] = explode('/', $rule, 2);
-        $a = @inet_pton($net);
-        $b = @inet_pton($ip);
-        if ($a === false || $b === false || strlen($a) !== strlen($b)) {
-            return false;
-        }
-        $bits = (int)$bits;
-        $full = intdiv($bits, 8);
-        if ($full > 0 && substr($a, 0, $full) !== substr($b, 0, $full)) {
-            return false;
-        }
-        $rem = $bits % 8;
-        if ($rem === 0) {
-            return true;
-        }
-        $mask = (0xff << (8 - $rem)) & 0xff;
-        return (ord($a[$full]) & $mask) === (ord($b[$full]) & $mask);
+        return PolicyCompiler::ipInNet($rule, $ip);
     }
 
     /** numbers for the module header */

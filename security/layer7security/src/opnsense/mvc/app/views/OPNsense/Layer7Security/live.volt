@@ -336,6 +336,12 @@ $(document).ready(function () {
         return t;
     }
 
+    function isPrivate(ip) {
+        ip = String(ip || '').toLowerCase();
+        if (/^(10\.|127\.|192\.168\.|169\.254\.)/.test(ip) || /^172\.(1[6-9]|2[0-9]|3[01])\./.test(ip)) { return true; }
+        return /^(fe[89ab][0-9a-f]:|f[cd][0-9a-f]{2}:|::1$)/.test(ip);
+    }
+
     function quick(action, ctx) {
         var targets = targetsFor(ctx.host, ctx.ip);
         if (!targets.length) { L7.toast('{{ lang._('Nothing to act on.') }}', 'warn'); return; }
@@ -349,7 +355,8 @@ $(document).ready(function () {
         var howlong = '<select id="qa-long" class="form-control"><option value="0">{{ lang._('Always (until I remove it)') }}</option>' +
             '<option value="60">{{ lang._('1 hour') }}</option><option value="480">{{ lang._('8 hours') }}</option><option value="1440">{{ lang._('1 day') }}</option>' +
             '<option value="10080">{{ lang._('7 days') }}</option><option value="43200">{{ lang._('30 days') }}</option></select>';
-        var msg = '<div class="l7">' +
+        var internal = (!ctx.host && isPrivate(ctx.ip)) ? '<div class="l7-hint warn">{{ lang._('This is an address on your own network. Blocking it stops devices from reaching it.') }}</div>' : '';
+        var msg = '<div class="l7">' + internal +
             '<p>' + (action === 'block' ? '{{ lang._('The connection will be closed and nobody covered by this rule can reach it again.') }}' :
                      '{{ lang._('This overrides blocking rules, so the website or address can always be reached.') }}') + '</p>' +
             '<div class="form-group"><label>{{ lang._('What') }}</label>' + opts + '</div>' +
@@ -362,11 +369,13 @@ $(document).ready(function () {
             message: msg,
             buttons: [
                 {label: '{{ lang._('Cancel') }}', action: function (d) { d.close(); }},
-                {label: verb, cssClass: action === 'block' ? 'btn-danger' : 'btn-success', action: function (d) {
+                {id: 'qa-yes', label: verb, cssClass: action === 'block' ? 'btn-danger' : 'btn-success', action: function (d) {
                     var t = targets[parseInt($('input[name=qa-what]:checked').val() || '0', 10)];
                     var body = {kind: t.kind, value: t.value, action: action, minutes: parseInt($('#qa-long').val(), 10),
                                 source: action === 'block' ? $('#qa-who').val() : '', note: $('#qa-note').val(), origin: 'live'};
-                    d.getButton(d.getButtons()[1].id).spin().disable();
+                    var $yes = d.getButton('qa-yes');
+                    $yes.spin();
+                    $yes.disable();
                     L7.post('/api/layer7security/webcontrol/quick', body).done(function (res) {
                         d.close();
                         if (res && res.result === 'saved' && res.applied !== false) {

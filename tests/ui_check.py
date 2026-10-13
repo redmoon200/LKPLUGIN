@@ -23,18 +23,25 @@ PASS = os.environ.get('OPN_UI_PASS', 'opnsense')
 BASE = 'https://%s' % HOST
 
 PAGES = {
-    '/ui/layer7security/dashboard': ['c-timeline', 'l7-period', 'dashboard/summary'],
-    '/ui/layer7security/flows': ['grid-flows', 'flows/search'],
-    '/ui/layer7security/policies': ['grid-policies', 'DialogPolicy', 'search_policy'],
-    '/ui/layer7security/users': ['grid-users', 'DialogUser', 'search_user'],
-    '/ui/layer7security/dns': ['frm_dns', 'dns/status', 'feedAct'],
+    '/ui/layer7security/dashboard': ['c-timeline', 'l7-period', 'dashboard/modules'],
+    '/ui/layer7security/live': ['tbl-conn', 'live/sessions', 'grid-flows', 'webcontrol/quick'],
+    '/ui/layer7security/webcontrol': ['grid-rules', 'DialogWebRule', 'webcontrol/searchRule', 'frm_web'],
+    '/ui/layer7security/appcontrol': ['grid-policies', 'DialogPolicy', 'appcontrol/state', 'tbl-appcats'],
+    '/ui/layer7security/cfs': ['frm_cfs', 'DialogCfsRule', 'cfs/status', 'tbl-cats'],
+    '/ui/layer7security/dpissl': ['frm_dpi', 'inspection/ca_info', 'caDownload'],
+    '/ui/layer7security/antivirus': ['grid-av', 'frm_antivirus', 'antivirus/search', 'antivirus/scanFile'],
+    '/ui/layer7security/access': ['frm_auth', 'grid-users', 'DialogUser', 'access/sessions'],
     '/ui/layer7security/macbinding': ['grid-bindings', 'DialogBinding', 'frm_mac', 'dashboard/devices'],
     '/ui/layer7security/geoip': ['grid-geo', 'DialogGeo', 'frm_geo', 'geo/update'],
-    '/ui/layer7security/ai': ['grid-ai', 'DialogAi', 'search_ai'],
+    '/ui/layer7security/ai': ['grid-ai', 'DialogAi', 'search_ai', 'ai/state'],
     '/ui/layer7security/audit': ['grid-audit', 'audit/search', 'audit/verify'],
-    '/ui/layer7security/inspection': ['frm_inspection', 'inspection/status', 'inspection/ca'],
-    '/ui/layer7security/antivirus': ['grid-av', 'frm_antivirus', 'antivirus/search'],
+    '/ui/layer7security/inspection': ['frm_inspection', 'inspection/status', 'test-text'],
     '/ui/layer7security/settings': ['frm_general', 'layer7security.general.enabled'],
+    # the old addresses forward to the new pages
+    '/ui/layer7security/policies': ['grid-policies', 'DialogPolicy'],
+    '/ui/layer7security/dns': ['frm_cfs', 'cfs/status'],
+    '/ui/layer7security/flows': ['grid-flows', 'live/sessions'],
+    '/ui/layer7security/users': ['grid-users', 'DialogUser'],
 }
 
 

@@ -1,7 +1,11 @@
-Layer 7 Security identifies the applications and categories behind your
-traffic with nDPI, records flows to a local SQLite database, shows them on a
-dashboard, and enforces policies per interface/VLAN, user and schedule through
-pf tables and Unbound DNS filtering.
+Layer 7 Security is a security console for OPNsense. It identifies the
+applications and websites behind your traffic with nDPI and shows them live
+(Live Sessions) with one-click Block and Allow. Protection modules: Web
+Control (wildcard website and IP rules), Application Control, content filtering
+(CFS), DPI-SSL, and antivirus for downloads (malware hashes and YARA
+signatures). Devices can be required to sign in. AI services can be controlled,
+inspected and audited. Lists and signatures come from an optional cloud feed
+server.
 
 This is an independent open-source project and is not affiliated with any
 commercial Layer 7 product.
@@ -10,6 +14,15 @@ https://github.com/redmoon200/LKPLUGIN
 
 Plugin Changelog
 ================
+
+0.4.0
+
+* redesign the console: menus Layer 7, Protection and AI, one layout for every module (status, tiles, tabs, logs)
+* add Live Sessions with Block and Allow of websites, whole domains and IP addresses from the connection list
+* add Web Control: wildcard website rules (*instagram.com), IP rules, per-device and temporary rules, allow exceptions
+* add Application Control one-click categories and applications, content filtering (CFS) with safe search and known-bad IP lists, DPI-SSL for all HTTPS with exclusions
+* add web access sign-in (login page, OPNsense users, LDAP or RADIUS) and policies for signed-in users
+* add MD5, SHA-1 and SHA-256 malware lists and YARA virus signatures to the download antivirus, fed by the cloud server
 
 0.3.0
 

@@ -41,9 +41,11 @@ def main():
         page.wait_for_load_state('networkidle')
 
         # ---- user
-        page.goto('https://%s/ui/layer7security/users' % HOST)
+        page.goto('https://%s/ui/layer7security/users' % HOST)         # forwards to Users and Access
         page.wait_for_load_state('networkidle')
-        page.click('button.command-add')
+        page.click('a[href="#tab-users"]')
+        page.wait_for_timeout(800)
+        page.click('#grid-users button.command-add, #grid-users-footer button.command-add, button.command-add')
         page.wait_for_selector('#DialogUser', state='visible')
         page.fill('#user\\.name', 'ui-test-user')
         page.evaluate("""() => { const s = document.getElementById('user.addresses');
@@ -55,8 +57,10 @@ def main():
         failed += check('ui-test-user' in page.content(), 'user created through the dialog and shown in the grid')
 
         # ---- policy
-        page.goto('https://%s/ui/layer7security/policies' % HOST)
+        page.goto('https://%s/ui/layer7security/policies' % HOST)      # forwards to Application Control
         page.wait_for_load_state('networkidle')
+        page.click('a[href="#tab-rules"]')
+        page.wait_for_timeout(800)
         page.click('button.command-add')
         page.wait_for_selector('#DialogPolicy', state='visible')
         n_apps = page.evaluate("document.getElementById('policy.applications').options.length")
@@ -94,13 +98,14 @@ def main():
         ok_pol = delete_row('#grid-policies', 'ui-test-policy')
         page.goto('https://%s/ui/layer7security/users' % HOST)
         page.wait_for_load_state('networkidle')
+        page.click('a[href="#tab-users"]')
         page.wait_for_timeout(1000)
         ok_usr = delete_row('#grid-users', 'ui-test-user')
         failed += check(ok_pol and ok_usr, 'test policy and user deleted through the grid')
         page.reload()
         page.wait_for_load_state('networkidle')
-        page.wait_for_timeout(1000)
-        failed += check('ui-test-user' not in page.content(), 'user is gone after reload')
+        page.wait_for_timeout(1500)
+        failed += check('ui-test-user' not in page.locator('#grid-users').inner_text(), 'user is gone after reload')
         failed += check(not errors, 'no JavaScript errors (%s)' % '; '.join(errors)[:120])
         browser.close()
     return 1 if failed else 0

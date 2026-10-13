@@ -103,6 +103,16 @@ def login(ip, user, mac='', hours=None):
     return {'ip': ip, 'user': user, 'expires': t + hours * 3600}
 
 
+def kill_states(ip):
+    """drop the open connections of a device that is no longer signed in"""
+    ip = valid_ip(ip)
+    if ip:
+        try:
+            subprocess.run([PFCTL, '-k', ip], capture_output=True, timeout=20)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+
 def logout(ip, reason='logout', detail=''):
     ip = valid_ip(ip)
     if not ip:
@@ -110,13 +120,14 @@ def logout(ip, reason='logout', detail=''):
     con = connect()
     with con:
         row = con.execute('SELECT user FROM sessions WHERE ip=?', (ip,)).fetchone()
-        if row is None:
-            con.close()
-            return False
-        con.execute('DELETE FROM sessions WHERE ip=?', (ip,))
-        log_event(con, reason, row['user'], ip, detail)
+        if row is not None:
+            con.execute('DELETE FROM sessions WHERE ip=?', (ip,))
+            log_event(con, reason, row['user'], ip, detail)
     con.close()
+    if row is None:
+        return False
     sync()
+    kill_states(ip)
     return True
 
 
@@ -175,6 +186,10 @@ def expire():
             log_event(con, kind, r['user'], r['ip'], why)
         con.execute('DELETE FROM events WHERE ts < ?', (t - KEEP_LOG_DAYS * 86400,))
     con.close()
+    if gone:
+        sync()
+        for r, _kind, _why in gone:
+            kill_states(r['ip'])
     return len(gone)
 
 

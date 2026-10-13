@@ -25,7 +25,7 @@ opnsh <<'REMOTE'
 cd /root/plugins/security/layer7security
 mkdir -p src/libexec/layer7security
 install -m 755 /root/engine/l7engine src/libexec/layer7security/l7engine
-chmod 755 src/etc/rc.d/layer7security src/etc/rc.d/layer7security_proxy src/opnsense/scripts/OPNsense/Layer7Security/*
+chmod 755 src/etc/rc.d/layer7security src/etc/rc.d/layer7security_proxy src/etc/rc.d/layer7security_portal src/opnsense/scripts/OPNsense/Layer7Security/*
 make clean >/dev/null 2>&1 || true
 make package 2>&1 | tail -15
 ls -la work/pkg/ 2>/dev/null

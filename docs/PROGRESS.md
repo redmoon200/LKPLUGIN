@@ -136,6 +136,62 @@ The test file server for download protection is a loopback alias (198.51.100.10)
 the proxy rules deliberately never redirect private destinations and the Proxmox NIC dropped packets for
 an extra address on the cloud VM.
 
+## v0.4.0: console redesign, Live Sessions, Web Control, CFS, DPI-SSL, sign-in, signature antivirus (2026-10-13)
+Requested: Web Control, Application Control, CFS, DPI-SSL and IP and user based authentication for website
+access; wildcard blocking such as `*instagram.com`; a Zenarmor-like Live Session Console with quick Allow and
+Block of a domain or IP address; a redesigned console with the two menus AI (AI Service, AI Inspection, AI
+Audit) and Protection (Web Control, Application Control, CFS, DPI-SSL), each module with its own dashboard,
+settings, logs and status; a signature-based virus scanner, and a cloud server VM that downloads hashes,
+website and IP lists to improve the plugin.
+
+Decisions that need your attention:
+- The navigation has a third menu, **Layer 7**, for the pages that belong to no module (Overview, Live
+  Sessions, Users and Access, MAC Binding, GeoIP, Settings). **Antivirus** sits in the Protection menu next to
+  the four you named.
+- "Signature-based" is built on **YARA** (package `yara`, open source, BSD). ClamAV stays out as you asked.
+  The signature set (the project's own rules plus the MIT-licensed ReversingLabs rules, 310 files, 321 rules
+  compile on FreeBSD) is a safety net, not a full antivirus.
+- Sign-in is a login page on the firewall (HTTPS, self-signed certificate) that checks the password with the
+  OPNsense authentication servers (local users, LDAP, RADIUS). Devices that are not signed in cannot use the
+  web; policies for a named user follow the signed-in device.
+
+- **Console**: three top-level menus, one shared layout (`console.css`, `console.js`, `partials/header.volt`):
+  header with module state, engine state and Apply; tiles; tabs; activity logs; works at phone width. Old URLs
+  (`policies`, `dns`, `flows`, `users`) forward to the new pages.
+- **Live Sessions** (`live.py`): `pfctl -ss -v` parsed (NAT pairs merged, initiator found, direction), joined
+  with engine flows (site, application, country, decision); rates computed in the browser; views by device and
+  by website; blocked just now; history. Block and Allow dialog: what (site, whole domain, IP), for whom,
+  how long, note; calls `webcontrol/quick`, which saves and applies in one call; IP blocks also kill open states.
+- **Web Control**: wildcard rules compiled to engine policies (`fnmatch` host patterns), Unbound zones (apex and
+  sub-domains; `transparent` zones for allow exceptions) and pf tables with negated allow entries; temporary
+  rules (expiry job), bulk add, test box, activity.
+- **Application Control** and **AI Service**: one-click Allow / Watch / Block per category, application and AI
+  service (ordinary policies and AI rules under the hood), advanced rule grids kept.
+- **CFS**: categories, group rules, safe search, YouTube restricted mode, five known-bad IP lists as pf tables,
+  category lookup, activity from the Unbound log, cloud status page.
+- **DPI-SSL**: scope selected or all HTTPS (exclusion list with ready-made pinned-app entries), restricted or full
+  CA, Apply refuses a certificate that does not fit, session log from a Squid access log.
+- **Users and Access**: login portal, sessions, log, bypass list, group limit, idle and absolute timeout,
+  throttling; engine policies for signed-in users (session map file) and per-policy pf tables.
+- **Antivirus**: MD5/SHA-1/SHA-256 lists with family names, YARA signatures, file scan tool, hash lookup.
+- **Cloud server** (VM 9103, `cloud/`): hourly build of 10 domain categories (about 400k domains), 5 IP lists
+  (about 49k addresses), hashes (1.3k SHA-256, 141 SHA-1, 197k MD5), signatures, manifest with sources and
+  licences, gzip and ETag; the firewall downloads 16 lists plus signatures in about 6 seconds.
+
+Bugs found and fixed while testing this release:
+- `auth.logout` closed the database inside its own `with` block when the address was not signed in.
+- The policy name mask refuses `:`, so the one-click rules are named `AppControl - <name>`.
+- A replaced CA was not loaded by Squid (the proxy was only restarted when its config changed); Apply now
+  remembers the certificate the proxy was started with and restarts it when it changes.
+- `normalizeSite` accepted a lone `com` or `*`; such names are refused now (a single label needs a wildcard).
+- `L7.applyButton` lost typed form values; it now saves the page's forms before applying.
+- Menu and ACL caches are in `/var/lib/php/tmp`, not `/tmp` (the sync script cleared the wrong place).
+- The e2e helpers used a literal carriage return in `tr -d`, which silently kept most rows; replaced by `\015`.
+
+Lab notes: yara installed on the firewall (`pkg install yara`) and on the cloud VM (`apt install yara`);
+the cloud VM runs `l7cloud-feed.service` and `l7cloud-build.timer`. A leftover test address alias on the
+cloud VM from 0.3.0 testing was removed.
+
 ## Bugs found and fixed while testing
 - Host-matching policies matched the DNS flow itself and put the resolver in the
   block table (cut DNS). DNS flows are no longer policy targets.
@@ -183,14 +239,14 @@ No new `qm` commands were needed for 0.2.0 (no VM was created, resized or snapsh
 ## Known limits and open items
 - Per-VLAN/interface scopes resolve IPv4 networks; IPv6 clients must be listed
   as sources or users.
-- Users are identified by static IP addresses only (no directory/captive-portal
-  integration).
+- Users are identified by static IP addresses or, since 0.4.0, by signing in on the login page (per IPv4
+  address; IPv6 web traffic is blocked on sign-in networks; category lists cannot tell signed-in users apart).
 - TLS is decrypted only for the AI services and download sites an administrator selects (needs the
   inspection CA on the clients; pinned apps and ECH cannot be inspected; QUIC must be blocked). All other
   traffic is classified from handshake metadata (ECH/VPN traffic may show as TLS/VPN). Blocking is per
   address and DNS name.
-- Download protection is not a signature-based virus scanner: it only knows files from the hash feed and
-  your own list, and file types. Archives are not opened and large files are not hashed.
+- The antivirus is hashes, YARA signatures and file types: archives are not opened, large files are not hashed
+  and detection depends on the public rules the cloud server collects.
 - A block rule can let the very first connection through right after the rule is added (about 1 in 4
   in the lab, same with the 0.2.0 engine; not reproducible in 100+ isolated attempts with an existing
   rule). The e2e checks allow one such slip and require the following tries to be dropped.

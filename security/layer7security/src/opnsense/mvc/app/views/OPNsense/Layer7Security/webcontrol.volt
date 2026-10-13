@@ -35,6 +35,9 @@
                 <span class="l7-chip" data-show="domain">{{ lang._('Websites') }}</span>
                 <span class="l7-chip" data-show="ip">{{ lang._('IP addresses') }}</span>
                 <span class="l7-chip" data-show="temporary">{{ lang._('Temporary') }}</span>
+                <span style="flex:1"></span>
+                <button class="btn btn-primary" id="wc-add-quick" type="button"><i class="fa fa-plus"></i> {{ lang._('Add rule') }}</button>
+                <button class="btn btn-default" id="wc-bulk" type="button"><i class="fa fa-list"></i> {{ lang._('Add many at once') }}</button>
             </div>
             <table id="grid-rules" class="table table-condensed table-hover table-striped" data-editDialog="DialogWebRule" data-editAlert="l7-pending">
                 <thead>
@@ -156,6 +159,27 @@ $(document).ready(function () {
         $('.l7-chip[data-show]').removeClass('on');
         $(this).addClass('on');
         $('#grid-rules').bootgrid('reload');
+    });
+
+    $('#wc-add-quick').on('click', function () { $('button.command-add').first().trigger('click'); });
+
+    $('#wc-bulk').on('click', function () {
+        var body = '<div class="l7"><p class="l7-muted">{{ lang._('Paste websites or IP addresses, one per line or separated by commas. Wildcards work (*.example.com).') }}</p>' +
+            '<textarea id="bulk-text" class="form-control" rows="9" placeholder="*.example.com&#10;ads.example.net&#10;203.0.113.0/24"></textarea>' +
+            '<div class="form-group" style="margin-top:10px"><label>{{ lang._('What to do') }}</label><select id="bulk-action" class="form-control"><option value="block">{{ lang._('Block') }}</option><option value="allow">{{ lang._('Allow') }}</option></select></div></div>';
+        BootstrapDialog.show({title: '{{ lang._('Add many at once') }}', message: body, buttons: [
+            {label: '{{ lang._('Cancel') }}', action: function (d) { d.close(); }},
+            {id: 'bulk-go', label: '{{ lang._('Add') }}', cssClass: 'btn-primary', action: function (d) {
+                L7.post('/api/layer7security/webcontrol/bulk', {text: $('#bulk-text').val(), action: $('#bulk-action').val()}).done(function (r) {
+                    d.close();
+                    if (r && r.result === 'saved') {
+                        var m = r.added + ' {{ lang._('added') }}' + (r.skipped ? ', ' + r.skipped + ' {{ lang._('already there') }}' : '') + (r.invalid && r.invalid.length ? ', ' + r.invalid.length + ' {{ lang._('not understood') }}: ' + r.invalid.slice(0, 3).join(' ') : '');
+                        L7.toast(m, r.invalid && r.invalid.length ? 'warn' : '');
+                        if (r.added) { L7.pending(); }
+                        $('#grid-rules').bootgrid('reload'); loadStatus();
+                    } else { L7.toast((r && r.message) || '{{ lang._('Could not save.') }}', 'bad'); }
+                });
+            }}]});
     });
 
     /* ---- tiles ---- */

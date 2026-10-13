@@ -21,7 +21,7 @@ reaches() { [ "$(fetch "$1")" = "200" ]; }
 blocked() { # the first connection right after a rule change can slip through (documented); the next ones must not
 	_slip=0
 	for _i in 1 2 3 4; do
-		_out=$(cli "curl -sS -o /dev/null -m 8 -w '%{http_code} %{remote_ip}' $1 2>/dev/null" | tr -d '')
+		_out=$(cli "curl -sS -o /dev/null -m 8 -w '%{http_code} %{remote_ip}' $1 2>/dev/null" | tr -d '\015')
 		case "$_out" in
 		200*)
 			echo "    leak on try $_i to ${_out#200 }: $1"
@@ -44,6 +44,11 @@ clear_policies() {
 		api POST "/api/layer7security/settings/del_user/$u" >/dev/null
 	done
 }
+clear_web() {
+	for u in $(api GET /api/layer7security/webcontrol/searchRule | python -c "import json,sys; [print(r['uuid']) for r in json.load(sys.stdin)['rows']]" | tr -d '\015'); do
+		api POST "/api/layer7security/webcontrol/delRule/$u" >/dev/null
+	done
+}
 add_policy() { api POST /api/layer7security/settings/add_policy "$1" >/dev/null; }
 started_count() { opn "grep -c started /var/log/layer7security.log" | tr -d '\015'; }
 apply() { # wait for the restarted engine to report started: the first request after Apply must not beat it
@@ -64,6 +69,8 @@ if want setup; then
 echo "== setup"
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"enabled":"1","interfaces":"lan","enforce":"1","dnsFilter":"0","dnsCategories":"","dnsBlock":"","dnsAllow":""}}}' >/dev/null
 clear_policies
+clear_web
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"feedUrl":"http://192.168.1.73:8080/feeds"},"auth":{"enabled":"0","bypass":""},"dpi":{"enabled":"0","scope":"selected","exclusions":"","sites":"","caMode":"restricted"},"cfs":{"safeSearch":"0","youtube":"off","threatIps":""},"av":{"enabled":"0","yaraAction":"monitor","customHashes":""}}}' >/dev/null
 apply
 is_running() { api GET /api/layer7security/service/status | grep -q '"running"'; }
 check "engine is running" is_running
@@ -378,6 +385,8 @@ api POST /api/layer7security/settings/add_ai '{"aiservice":{"enabled":"1","servi
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"interfaces":"lan","aiEnabled":"1","aiDefault":"monitor","aiQuic":"off"},"dlp":{"enabled":"1","inspectDefault":"0","cardAction":"block","idAction":"block","keyAction":"block","codeAction":"monitor","codeMinLines":"12","failMode":"closed","maxBodyKb":"4096","blockMessage":""}}}' >/dev/null
 apply
 sleep 3
+api POST /api/layer7security/inspection/ca_new >/dev/null    # a fresh certificate of the type set in DPI-SSL (restricted)
+sleep 3
 check "the CA certificate can be downloaded and installed" install_ca
 ca_limited() { api GET /api/layer7security/inspection/ca_info | grep -q anthropic.com; }
 check "the CA is restricted to named domains" ca_limited
@@ -495,9 +504,12 @@ api POST /api/layer7security/settings/set '{"layer7security":{"general":{"dnsFil
 
 fi
 
+. "$(dirname "$0")/e2e_v04_sections.sh"
+
 if want cleanup; then
 echo "== cleanup"
 clear_policies
+clear_web
 apply
 no_rules() { ! opn 'pfctl -sr' | grep -q l7_blk; }
 check "no policy left in pf" no_rules

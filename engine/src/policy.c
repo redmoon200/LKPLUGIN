@@ -100,7 +100,7 @@ sched_active(const policy_t *p)
  * A leading "*." also covers the bare domain, so "*.example.com" blocks
  * example.com and everything below it.
  */
-static int
+int
 host_match(const char *pat, const char *host)
 {
 	size_t lp = strlen(pat), lh = strlen(host);
