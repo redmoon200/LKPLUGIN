@@ -1,0 +1,25 @@
+# secrets - never commit
+.env
+.env.*
+*.key
+*.pem
+id_*
+*.pub
+secrets/
+.lk-secrets/
+*.token
+# build artifacts
+*.o
+*.a
+*.core
+work/
+*.pkg
+*.txz
+__pycache__/
+*.pyc
+# local scratch
+reference/
+*.log
+*.swp
+.DS_Store
+Thumbs.db
