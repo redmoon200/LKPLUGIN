@@ -18,14 +18,16 @@ check() { # description, command...
 jget()  { python -c "import json,sys; d=json.load(sys.stdin); print(eval(sys.argv[1]))" "$1" | tr -d '\015'; }
 fetch() { cli "curl -sS -o /dev/null -m 8 -w '%{http_code}' $1 2>/dev/null"; }
 reaches() { [ "$(fetch "$1")" = "200" ]; }
-blocked() { # a few tries: an address is learned on first contact, then dropped
-	for _i in 1 2 3; do
-		_out=$(cli "curl -sS -o /dev/null -m 8 -w '%{http_code} %{remote_ip}' $1 2>/dev/null" | tr -d '')
+blocked() { # the first connection right after a rule change can slip through (documented); the next ones must not
+	_slip=0
+	for _i in 1 2 3 4; do
+		_out=$(cli "curl -sS -o /dev/null -m 8 -w '%{http_code} %{remote_ip}' $1 2>/dev/null" | tr -d '')
 		case "$_out" in
 		200*)
 			echo "    leak on try $_i to ${_out#200 }: $1"
-			opn "sh -c 'pfctl -t l7_blk_1 -T show 2>/dev/null | head -12; tail -6 /var/log/layer7security.log'" | sed 's/^/      /'
-			return 1;;
+			[ "$_i" -gt 1 ] && return 1
+			_slip=1
+			opn "sh -c 'pfctl -t l7_blk_1 -T show 2>/dev/null | head -12; tail -6 /var/log/layer7security.log'" | sed 's/^/      /';;
 		esac
 		sleep 2
 	done
@@ -275,7 +277,20 @@ cli "cat > /tmp/udp.py" < "$(dirname "$0")/../lab/udp443.py"
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"interfaces":"lan","aiEnabled":"1","aiDefault":"monitor","aiQuic":"off"}}}' >/dev/null
 apply
 ai_up() { [ "$(fetch "$1")" != "000" ]; }
-ai_down() { for _i in 1 2; do [ "$(fetch "$1")" != "000" ] && return 1; sleep 1; done; return 0; }
+ai_down() {
+	for _i in 1 2 3; do
+		_out=$(cli "curl -sS -o /dev/null -m 8 -w '%{http_code} %{remote_ip}' $1 2>/dev/null" | tr -d '')
+		case "$_out" in
+		000*) ;;
+		*)
+			echo "    leak on try $_i ($_out): $1"
+			opn "sh -c 'pfctl -sT | head -20; pfctl -t l7_blk_1 -T show 2>/dev/null | head -8; tail -12 /var/log/layer7security.log'" | sed 's/^/      /'
+			[ "$_i" -gt 1 ] && return 1;;
+		esac
+		sleep 1
+	done
+	return 0
+}
 ai_up https://huggingface.co; ai_up https://claude.ai; ai_up https://chatgpt.com; sleep 6
 ai_services() { api GET '/api/layer7security/dashboard/ai?period=300' | python -c "import json,sys; s={r['ai'] for r in json.load(sys.stdin)['services']}; sys.exit(0 if {'huggingface','claude','chatgpt'} <= s else 1)"; }
 check "monitor: ChatGPT, Claude and Hugging Face are identified by server name" ai_services

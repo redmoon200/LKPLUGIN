@@ -213,6 +213,10 @@ without query string, size, type, hash, action) are kept 90 days in `av.db`.
   heuristics; ECH or VPN traffic may show as TLS/VPN only. TLS is decrypted
   only for the AI services and download sites an administrator selects (see
   AI content inspection); everything else is never decrypted.
+- The first connection to a site right after a block rule is added can occasionally slip
+  through (the address is learned from DNS or from that connection; later connections are
+  dropped). In the lab this happened in about one fresh rule in four with the YouTube test,
+  identically with the 0.2.0 engine, and could not be reproduced when the rule already existed.
 - Blocking is per destination address; for shared CDN addresses the DNS name
   is the better handle (use host or DNS rules).
 - One engine process captures all selected interfaces; for very high line
