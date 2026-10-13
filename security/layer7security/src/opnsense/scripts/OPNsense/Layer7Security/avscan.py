@@ -4,17 +4,19 @@
 # All rights reserved.
 # SPDX-License-Identifier: BSD-2-Clause
 #
-# Web download protection without a signature engine:
+# Web download protection:
 #   * file-type control: executables, scripts, installer packages and archives are
 #     recognised by their first bytes and file name (not by what the server claims)
-#   * hash reputation: the SHA-256 of every download is looked up in a feed of known
-#     malware hashes, a list you maintain, and the EICAR test file
+#   * hash reputation: the MD5, SHA-1 and SHA-256 of every download are looked up in the
+#     malware hash lists from the cloud server, a feed you configure, a list you
+#     maintain, and the EICAR test file
+#   * signatures: YARA rules (from the cloud server) are matched against the file
 # Used as the /av RESPMOD service of icap_server.py, and from the command line:
 #
 #   avscan.py status
 #   avscan.py list ROWS OFFSET PERIOD PHRASE
 #   avscan.py feed-update [auto]
-#   avscan.py check SHA256
+#   avscan.py check HASH            MD5, SHA-1 or SHA-256
 #   avscan.py prune
 #
 # Only the file name (no query string), size, type and hash of a detection are kept.
@@ -33,12 +35,17 @@ import zipfile
 import zlib
 from urllib.parse import urlsplit
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import signatures  # noqa: E402
+
 SETTINGS = os.environ.get('L7_INSPECTION_JSON', '/usr/local/etc/layer7security/inspection.json')
 AV_DB = os.environ.get('L7_AV_DB', '/var/db/layer7security/av.db')
 HASH_FILE = os.environ.get('L7_AV_HASHES', '/var/db/layer7security/av_hashes.txt')
 FEED_INFO = os.environ.get('L7_AV_FEED_INFO', '/var/db/layer7security/av_feed.json')
 RETENTION_DAYS = 90
 MAX_FEED = 128 * 1024 * 1024
+AV_DIR = os.environ.get('L7_AV_DIR', '/var/db/layer7security/av')
+CLOUD_FILES = {'sha256': 64, 'sha1': 40, 'md5': 32}
 EICAR_SHA256 = '275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f'
 HEX64 = re.compile(r'(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])')
 PERIODS = (300, 3600, 21600, 86400, 604800, 2592000, 31536000)
@@ -54,8 +61,9 @@ EXT = {
 OFFICE_ZIP = {'docx', 'docm', 'xlsx', 'xlsm', 'pptx', 'pptm', 'odt', 'ods', 'odp', 'epub', 'xpi', 'whl', 'nupkg'}
 
 settings = {'enabled': False, 'types': {}, 'hashAction': 'block', 'maxSizeMb': 50, 'skip': [],
-            'customHashes': [], 'failMode': 'open'}
-hashes = set()
+            'customHashes': [], 'failMode': 'open', 'yaraAction': 'off', 'useCloud': True}
+hashes = {'md5': set(), 'sha1': set(), 'sha256': set()}      # raw digests
+families = {}                                                  # hex digest -> malware family (when the list names it)
 hash_state = {'mtime': None, 'custom': None, 'checked': 0}
 stats = {'scanned': 0, 'detections': 0, 'blocked': 0, 'skipped_large': 0}
 ICAP = None
@@ -70,7 +78,7 @@ def bind(mod):
 def configure(av):
     global settings
     types = {k: v for k, v in (av.get('types') or {}).items() if k in TYPE_LABEL and v in ('off', 'monitor', 'block')}
-    custom = [h.lower() for h in av.get('customHashes', []) if isinstance(h, str) and re.fullmatch(r'[0-9a-fA-F]{64}', h)]
+    custom = [h.lower() for h in av.get('customHashes', []) if isinstance(h, str) and re.fullmatch(r'[0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{64}', h)]
     try:
         size = max(1, int(av.get('maxSizeMb', 50)))
     except (TypeError, ValueError):
@@ -80,6 +88,8 @@ def configure(av):
         'hashAction': av.get('hashAction') if av.get('hashAction') in ('off', 'monitor', 'block') else 'block',
         'maxSizeMb': size, 'skip': [d.lower().lstrip('.') for d in av.get('skip', []) if isinstance(d, str)],
         'customHashes': custom, 'failMode': av.get('failMode', 'open'), 'feed': av.get('feed') or {},
+        'yaraAction': av.get('yaraAction') if av.get('yaraAction') in ('off', 'monitor', 'block') else 'off',
+        'useCloud': bool(av.get('useCloud', True)),
     }
     hash_state['custom'] = None
 
@@ -148,6 +158,7 @@ def classify(head, name=''):
 
 
 def parse_hashes(text):
+    """SHA-256 values anywhere in the lines of a feed or an own list"""
     out = set()
     for line in text.splitlines():
         if line.startswith('#'):
@@ -158,36 +169,79 @@ def parse_hashes(text):
     return out
 
 
+def load_cloud_file(algo, new, names):
+    """a list from the cloud server: "hash" or "hash;family" per line"""
+    path = os.path.join(AV_DIR, 'cloud_%s.txt' % algo)
+    try:
+        with open(path, errors='replace') as f:
+            for line in f:
+                h, _sep, fam = line.strip().partition(';')
+                if len(h) == CLOUD_FILES[algo]:
+                    try:
+                        raw = bytes.fromhex(h)
+                    except ValueError:
+                        continue
+                    new[algo].add(raw)
+                    if fam and len(names) < 400000:
+                        names[h] = fam
+    except OSError:
+        pass
+
+
+def signature_of_files():
+    sig = []
+    for p in [HASH_FILE] + [os.path.join(AV_DIR, 'cloud_%s.txt' % a) for a in CLOUD_FILES]:
+        try:
+            st = os.stat(p)
+            sig.append((st.st_mtime, st.st_size))
+        except OSError:
+            sig.append(None)
+    return tuple(sig)
+
+
 def load_hashes(force=False):
-    """feed file + custom list + EICAR, reloaded when the feed file changes"""
+    """feed file, cloud lists, custom list and EICAR; reloaded when a file changes"""
     now = time.time()
     if not force and now - hash_state['checked'] < 20 and hash_state['custom'] is not None:
         return
     hash_state['checked'] = now
-    try:
-        mtime = os.stat(HASH_FILE).st_mtime
-    except OSError:
-        mtime = None
-    custom = tuple(settings['customHashes'])
-    if not force and mtime == hash_state['mtime'] and custom == hash_state['custom']:
+    files = signature_of_files()
+    custom = (tuple(settings['customHashes']), settings['useCloud'])
+    if not force and files == hash_state['mtime'] and custom == hash_state['custom']:
         return
-    new = set()
-    if mtime is not None:
-        try:
-            with open(HASH_FILE, errors='replace') as f:
-                new |= parse_hashes(f.read())
-        except OSError:
-            pass
-    new |= {bytes.fromhex(h) for h in custom}
-    new.add(bytes.fromhex(EICAR_SHA256))
-    hashes.clear()
-    hashes.update(new)
-    hash_state['mtime'], hash_state['custom'] = mtime, custom
+    new = {'md5': set(), 'sha1': set(), 'sha256': set()}
+    names = {}
+    try:
+        with open(HASH_FILE, errors='replace') as f:
+            new['sha256'] |= parse_hashes(f.read())
+    except OSError:
+        pass
+    if settings['useCloud']:
+        for algo in CLOUD_FILES:
+            load_cloud_file(algo, new, names)
+    for h in settings['customHashes']:
+        new[{32: 'md5', 40: 'sha1', 64: 'sha256'}[len(h)]].add(bytes.fromhex(h))
+    new['sha256'].add(bytes.fromhex(EICAR_SHA256))
+    for algo in new:
+        hashes[algo] = new[algo]
+    families.clear()
+    families.update(names)
+    hash_state['mtime'], hash_state['custom'] = files, custom
+
+
+def lookup(digests):
+    """digests: {algo: hex}; -> (algo, hex) of the first known one, else None"""
+    load_hashes()
+    for algo in ('sha256', 'sha1', 'md5'):
+        hx = digests.get(algo)
+        if hx and bytes.fromhex(hx) in hashes[algo]:
+            return algo, hx
+    return None
 
 
 def is_known(digest_hex):
-    load_hashes()
-    return bytes.fromhex(digest_hex) in hashes
+    algo = {32: 'md5', 40: 'sha1', 64: 'sha256'}.get(len(digest_hex))
+    return bool(algo) and lookup({algo: digest_hex}) is not None
 
 
 def feed_info():
@@ -323,7 +377,9 @@ def status():
     day = int(time.time()) - 86400
     det = con.execute('SELECT COUNT(*), COALESCE(SUM(action="blocked"),0) FROM av_events WHERE ts >= ?', (day,)).fetchone()
     con.close()
-    return {'hashes': len(hashes), 'feedTs': info.get('ts', 0), 'feedCount': info.get('count', 0),
+    sig = signatures.status()
+    return {'hashes': sum(len(v) for v in hashes.values()), 'hashesByType': {k: len(v) for k, v in hashes.items()},
+            'signatures': sig, 'yaraAction': settings['yaraAction'], 'useCloud': settings['useCloud'], 'feedTs': info.get('ts', 0), 'feedCount': info.get('count', 0),
             'feedError': info.get('error', ''), 'feedUrl': info.get('url', ''), 'detections24h': det[0], 'blocked24h': det[1]}
 
 
@@ -363,11 +419,24 @@ def scan(head_data, full_data, name, truncated):
     kind, label = classify(head_data, name)
     digest = ''
     if not truncated and settings['hashAction'] != 'off':
-        digest = hashlib.sha256(full_data).hexdigest()
-        if is_known(digest):
+        digests = {'sha256': hashlib.sha256(full_data).hexdigest(), 'sha1': hashlib.sha1(full_data).hexdigest(),
+                   'md5': hashlib.md5(full_data).hexdigest()}
+        digest = digests['sha256']
+        hit = lookup(digests)
+        if hit:
             act = 'blocked' if settings['hashAction'] == 'block' else 'observed'
-            why = 'matches a known malware hash' if digest != EICAR_SHA256 else 'is the EICAR test file'
+            fam = families.get(hit[1], '')
+            if digest == EICAR_SHA256:
+                why = 'is the EICAR test file'
+            else:
+                why = 'matches a known malware hash' + (' (%s)' % fam if fam else '')
             return act, kind or 'hash', label or 'known hash', digest, 'the file ' + why
+    if settings['yaraAction'] != 'off' and len(full_data) > 0:
+        names = signatures.scan_bytes(full_data)
+        if names:
+            act = 'blocked' if settings['yaraAction'] == 'block' else 'observed'
+            nice = ', '.join(sorted(set(names))[:3])
+            return act, kind or 'signature', 'signature', digest, 'the file matches the virus signature ' + nice
     if kind:
         mode = settings['types'].get(kind, 'monitor')
         if mode == 'block':
@@ -443,11 +512,12 @@ def main(argv):
             os.system('/bin/pkill -HUP -f icap_server.py >/dev/null 2>&1')
     elif cmd == 'check':
         digest = (argv[2] if len(argv) > 2 else '').strip().lower()
-        if not re.fullmatch(r'[0-9a-f]{64}', digest):
-            out = {'error': 'a SHA-256 hash has 64 hexadecimal characters'}
+        if not re.fullmatch(r'[0-9a-f]{32}|[0-9a-f]{40}|[0-9a-f]{64}', digest):
+            out = {'error': 'enter an MD5 (32), SHA-1 (40) or SHA-256 (64) hash in hexadecimal'}
         else:
             load_hashes(force=True)
-            out = {'sha256': digest, 'known': is_known(digest), 'eicar': digest == EICAR_SHA256}
+            out = {'hash': digest, 'sha256': digest if len(digest) == 64 else '', 'known': is_known(digest),
+                   'eicar': digest == EICAR_SHA256, 'family': families.get(digest, '')}
     elif cmd == 'prune':
         out = prune()
     else:

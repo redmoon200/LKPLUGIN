@@ -12,7 +12,6 @@ class DnsController extends \OPNsense\Base\IndexController
 {
     public function indexAction()
     {
-        $this->view->pick('OPNsense/Layer7Security/dns');
-        $this->view->dnsForm = $this->getForm('dns');
+        return $this->response->redirect('/ui/layer7security/cfs');
     }
 }

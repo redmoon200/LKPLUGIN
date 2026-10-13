@@ -1,0 +1,8 @@
+<form>
+    <field>
+        <id>layer7security.webcontrol.enabled</id>
+        <label>Enable Web Control</label>
+        <type>checkbox</type>
+        <help>Turns all website and IP address rules on this page on or off. The rules themselves are kept.</help>
+    </field>
+</form>

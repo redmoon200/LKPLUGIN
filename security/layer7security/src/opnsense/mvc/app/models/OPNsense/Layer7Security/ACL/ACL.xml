@@ -21,6 +21,8 @@
             <pattern>api/layer7security/geo/*</pattern>
             <pattern>api/layer7security/inspection/*</pattern>
             <pattern>api/layer7security/antivirus/*</pattern>
+            <pattern>api/layer7security/webcontrol/*</pattern>
+            <pattern>api/layer7security/live/*</pattern>
         </patterns>
     </page-services-layer7security>
     <page-services-layer7security-audit>

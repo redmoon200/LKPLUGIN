@@ -1,6 +1,6 @@
 <model>
     <mount>//OPNsense/layer7security</mount>
-    <version>1.4.0</version>
+    <version>1.5.0</version>
     <description>Layer 7 Security: application visibility, policies and DNS filtering</description>
     <items>
         <general>
@@ -64,6 +64,7 @@
                     <social>Social networks</social>
                     <streaming>Streaming media</streaming>
                     <games>Games</games>
+                    <botnet>Botnet and command-and-control</botnet>
                 </OptionValues>
             </dnsCategories>
             <dnsBlock type="CSVListField">
@@ -426,9 +427,22 @@
             <customHashes type="CSVListField">
                 <Required>N</Required>
                 <MaskPerItem>Y</MaskPerItem>
-                <Mask>/^[0-9a-fA-F]{64}$/</Mask>
-                <ValidationMessage>Enter SHA-256 hashes (64 hexadecimal characters), separated by commas.</ValidationMessage>
+                <Mask>/^([0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/</Mask>
+                <ValidationMessage>Enter MD5 (32), SHA-1 (40) or SHA-256 (64) hashes in hexadecimal, separated by commas.</ValidationMessage>
             </customHashes>
+            <useCloud type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </useCloud>
+            <yaraAction type="OptionField">
+                <Default>monitor</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Off (no signature scan)</off>
+                    <monitor>Monitor (log matches)</monitor>
+                    <block>Block files that match a signature</block>
+                </OptionValues>
+            </yaraAction>
             <feedUrl type="TextField">
                 <Required>N</Required>
                 <Mask>/^https?:\/\/[^\s"'&lt;&gt;]{1,500}$/</Mask>
@@ -488,6 +502,191 @@
                 <Required>N</Required>
             </privacyAckAt>
         </audit>
+        <webcontrol>
+            <enabled type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </enabled>
+            <rule type="ArrayField">
+                <enabled type="BooleanField">
+                    <Default>1</Default>
+                    <Required>Y</Required>
+                </enabled>
+                <kind type="OptionField">
+                    <Default>domain</Default>
+                    <Required>Y</Required>
+                    <OptionValues>
+                        <domain>Website (domain or wildcard)</domain>
+                        <ip>IP address or network</ip>
+                    </OptionValues>
+                </kind>
+                <value type="TextField">
+                    <Required>Y</Required>
+                    <Mask>/^(?:\*\.?)?[a-z0-9?*]([a-z0-9._?*-]{0,250}[a-z0-9?*])?$|^[0-9a-f:.]{2,45}(?:\/[0-9]{1,3})?$/i</Mask>
+                    <ValidationMessage>Enter a website such as example.com, *.example.com or *instagram.com, or an IP address or network such as 203.0.113.7 or 203.0.113.0/24.</ValidationMessage>
+                </value>
+                <action type="OptionField">
+                    <Default>block</Default>
+                    <Required>Y</Required>
+                    <OptionValues>
+                        <block>Block</block>
+                        <allow>Allow (overrides blocks)</allow>
+                    </OptionValues>
+                </action>
+                <sources type="NetworkField">
+                    <Required>N</Required>
+                    <AsList>Y</AsList>
+                    <WildcardEnabled>N</WildcardEnabled>
+                </sources>
+                <expires type="IntegerField">
+                    <Default>0</Default>
+                    <Required>Y</Required>
+                    <MinimumValue>0</MinimumValue>
+                </expires>
+                <origin type="TextField">
+                    <Default>manual</Default>
+                    <Required>N</Required>
+                    <Mask>/^[a-z-]{0,16}$/</Mask>
+                </origin>
+                <created type="IntegerField">
+                    <Default>0</Default>
+                    <Required>Y</Required>
+                    <MinimumValue>0</MinimumValue>
+                </created>
+                <description type="DescriptionField"/>
+            </rule>
+        </webcontrol>
+        <cfs>
+            <safeSearch type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </safeSearch>
+            <youtube type="OptionField">
+                <Default>off</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Do not change</off>
+                    <moderate>Moderate restricted mode</moderate>
+                    <strict>Strict restricted mode</strict>
+                </OptionValues>
+            </youtube>
+            <threatIps type="OptionField">
+                <Required>N</Required>
+                <multiple>Y</multiple>
+                <OptionValues>
+                    <c2>Botnet command-and-control servers</c2>
+                    <compromised>Known compromised hosts</compromised>
+                    <attackers>Attackers and scanners</attackers>
+                    <drop>Hijacked networks (DROP)</drop>
+                    <tor>Tor exit nodes</tor>
+                </OptionValues>
+            </threatIps>
+            <threatDirection type="OptionField">
+                <Default>both</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <out>Block clients from reaching them</out>
+                    <both>Block both directions</both>
+                </OptionValues>
+            </threatDirection>
+        </cfs>
+        <dpi>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </enabled>
+            <scope type="OptionField">
+                <Default>selected</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <selected>Only the sites listed below, AI services and download sites</selected>
+                    <all>All HTTPS except the exclusions</all>
+                </OptionValues>
+            </scope>
+            <caMode type="OptionField">
+                <Default>restricted</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <restricted>Restricted CA (can only sign the listed sites)</restricted>
+                    <full>Full CA (can sign any site)</full>
+                </OptionValues>
+            </caMode>
+            <sites type="CSVListField">
+                <Required>N</Required>
+                <MaskPerItem>Y</MaskPerItem>
+                <Mask>/^[a-z0-9]([a-z0-9._-]{0,251}[a-z0-9])?$/i</Mask>
+                <ValidationMessage>Enter domain names such as example.com, separated by commas.</ValidationMessage>
+            </sites>
+            <exclusions type="CSVListField">
+                <Required>N</Required>
+                <MaskPerItem>Y</MaskPerItem>
+                <Mask>/^[a-z0-9]([a-z0-9._-]{0,251}[a-z0-9])?$/i</Mask>
+                <ValidationMessage>Enter domain names such as bank.example.com, separated by commas.</ValidationMessage>
+            </exclusions>
+            <excludeDefaults type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </excludeDefaults>
+        </dpi>
+        <auth>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </enabled>
+            <interfaces type="InterfaceField">
+                <Required>N</Required>
+                <multiple>Y</multiple>
+            </interfaces>
+            <server type="TextField">
+                <Default>Local Database</Default>
+                <Required>Y</Required>
+                <Mask>/^[A-Za-z0-9 ._@-]{1,64}$/</Mask>
+                <ValidationMessage>Enter the name of an authentication server from System > Access > Servers.</ValidationMessage>
+            </server>
+            <groups type="CSVListField">
+                <Required>N</Required>
+                <MaskPerItem>Y</MaskPerItem>
+                <Mask>/^[A-Za-z0-9 ._@-]{1,64}$/</Mask>
+                <ValidationMessage>Enter group names separated by commas.</ValidationMessage>
+            </groups>
+            <sessionHours type="IntegerField">
+                <Default>8</Default>
+                <Required>Y</Required>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>720</MaximumValue>
+                <ValidationMessage>Enter between 1 and 720 hours.</ValidationMessage>
+            </sessionHours>
+            <idleMinutes type="IntegerField">
+                <Default>120</Default>
+                <Required>Y</Required>
+                <MinimumValue>0</MinimumValue>
+                <MaximumValue>10080</MaximumValue>
+                <ValidationMessage>Enter between 0 (never) and 10080 minutes.</ValidationMessage>
+            </idleMinutes>
+            <bypass type="NetworkField">
+                <Required>N</Required>
+                <AsList>Y</AsList>
+                <WildcardEnabled>N</WildcardEnabled>
+            </bypass>
+            <portalPort type="IntegerField">
+                <Default>8444</Default>
+                <Required>Y</Required>
+                <MinimumValue>1025</MinimumValue>
+                <MaximumValue>65000</MaximumValue>
+                <ValidationMessage>Enter a port between 1025 and 65000.</ValidationMessage>
+            </portalPort>
+            <title type="TextField">
+                <Default>Sign in to use the internet</Default>
+                <Required>Y</Required>
+                <Mask>/^[^&lt;&gt;"'\x00-\x1f]{1,80}$/u</Mask>
+                <ValidationMessage>Enter a short title without quotes or angle brackets.</ValidationMessage>
+            </title>
+            <message type="TextField">
+                <Required>N</Required>
+                <Mask>/^[^&lt;&gt;"'\x00-\x1f]{0,300}$/u</Mask>
+                <ValidationMessage>Enter a short message without quotes or angle brackets.</ValidationMessage>
+            </message>
+        </auth>
         <users>
             <user type="ArrayField">
                 <name type="TextField">
@@ -516,6 +715,14 @@
                     <Default>1</Default>
                     <Required>Y</Required>
                 </enabled>
+                <module type="OptionField">
+                    <Default>app</Default>
+                    <Required>Y</Required>
+                    <OptionValues>
+                        <app>Application Control</app>
+                        <cfs>Content filtering</cfs>
+                    </OptionValues>
+                </module>
                 <name type="TextField">
                     <Required>Y</Required>
                     <Mask>/^[A-Za-z0-9_.@ -]{1,64}$/</Mask>
@@ -612,7 +819,8 @@
                         <social>Social networks</social>
                         <streaming>Streaming media</streaming>
                         <games>Games</games>
-                    </OptionValues>
+                        <botnet>Botnet and command-and-control</botnet>
+                        </OptionValues>
                 </dnsCategories>
                 <dnsDomains type="CSVListField">
                     <Required>N</Required>

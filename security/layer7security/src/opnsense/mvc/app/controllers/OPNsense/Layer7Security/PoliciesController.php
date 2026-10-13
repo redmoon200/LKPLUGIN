@@ -12,7 +12,6 @@ class PoliciesController extends \OPNsense\Base\IndexController
 {
     public function indexAction()
     {
-        $this->view->pick('OPNsense/Layer7Security/policies');
-        $this->view->formDialogPolicy = $this->getForm('dialogPolicy');
+        return $this->response->redirect('/ui/layer7security/appcontrol');
     }
 }

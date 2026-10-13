@@ -150,6 +150,8 @@ config_load(config_t *c, const char *path)
 			c->ai_quic = atoi(v);
 		else if (strcmp(k, "bindings") == 0)
 			snprintf(c->bindings_path, sizeof(c->bindings_path), "%s", v);
+		else if (strcmp(k, "sessions") == 0)
+			snprintf(c->sessions_path, sizeof(c->sessions_path), "%s", v);
 		else if (strcmp(k, "geo_dir") == 0)
 			snprintf(c->geo_dir, sizeof(c->geo_dir), "%s", v);
 		else if (strcmp(k, "net") == 0) {
@@ -255,7 +257,7 @@ policies_load(const char *path, policy_t *p, int max)
 		q->start_min = hhmm(fld[8]);
 		q->end_min = hhmm(fld[9]);
 		snprintf(q->table, sizeof(q->table), "l7_blk_%d", q->id);
-		/* optional flags: ai=<id>,inspect,quic */
+		/* optional flags: ai=<id>,inspect,quic,restrict,users=a|b */
 		if (nf >= 11 && strcmp(fld[10], "-") != 0) {
 			char *fl, *fs = NULL;
 
@@ -266,6 +268,16 @@ policies_load(const char *path, policy_t *p, int max)
 					q->inspect = 1;
 				else if (strcmp(fl, "quic") == 0)
 					q->quic = 1;
+				else if (strcmp(fl, "restrict") == 0)
+					q->restrict_src = 1;
+				else if (strncmp(fl, "users=", 6) == 0) {
+					char *u, *us = NULL, ulist[1024];
+
+					snprintf(ulist, sizeof(ulist), "%s", fl + 6);
+					for (u = strtok_r(ulist, "|", &us); u && q->nusers < L7_MAX_PUSERS;
+					    u = strtok_r(NULL, "|", &us))
+						snprintf(q->users[q->nusers++], sizeof(q->users[0]), "%s", u);
+				}
 			}
 		}
 		n++;

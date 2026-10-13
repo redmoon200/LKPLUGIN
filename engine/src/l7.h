@@ -16,11 +16,13 @@
 #include <stdio.h>
 #include <time.h>
 
-#define L7_VERSION "0.3.0"
+#define L7_VERSION "0.4.0"
 #define L7_MAX_IFACES 8
-#define L7_MAX_POLICIES 128
+#define L7_MAX_POLICIES 256
 #define L7_MAX_LIST 128
 #define L7_MAX_CIDR 64
+#define L7_MAX_PUSERS 32
+#define L7_MAX_SESSIONS 4096
 
 typedef struct {
 	int af;			/* AF_INET or AF_INET6 */
@@ -53,6 +55,9 @@ typedef struct {
 	char ai[24];		/* AI service id when this is an AI policy, else empty */
 	int inspect;		/* AI policy: send this service through the inspection proxy */
 	int quic;		/* AI policy: force the service off QUIC (UDP/443) */
+	int restrict_src;	/* sources/users configured: no address and no session match = no match */
+	int nusers;		/* signed-in users the policy applies to (matched through the session map) */
+	char users[L7_MAX_PUSERS][48];
 } policy_t;
 
 typedef struct {
@@ -74,6 +79,7 @@ typedef struct {
 	cidr_t nets[16];
 	int ai_inspect;		/* 1: fill l7_ai_bump so the proxy sees AI traffic */
 	int ai_quic;		/* 0 off, 1 AI services only (table), 2 all QUIC (pf rule only) */
+	char sessions_path[256]; /* signed-in users: "ip<TAB>user" per line, written by the portal */
 } config_t;
 
 #define AI_TABLE_BUMP "l7_ai_bump"
@@ -103,6 +109,10 @@ void store_event(const char *type, const char *cli, const char *srv, const char 
     const char *cat, const char *host, const char *policy, const char *detail);
 void store_prune(int retention_days);
 uint64_t store_rows(void);
+
+/* sessions (policy.c): signed-in users by client address */
+int sess_load(const char *path);
+const char *sess_user(const addr_t *a);
 
 /* policy.c */
 void policy_set(policy_t *p, int n);

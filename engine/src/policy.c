@@ -22,6 +22,7 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
+#include <fnmatch.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -92,16 +93,79 @@ sched_active(const policy_t *p)
 	return mins >= p->start_min || mins < p->end_min;	/* wraps midnight */
 }
 
+/*
+ * Host patterns: "example.com" matches the name and every sub-domain;
+ * a pattern with * or ? ("*.example.com", "*instagram.com", "ad*.example.net")
+ * is a case-insensitive glob over the whole name where * also crosses dots.
+ * A leading "*." also covers the bare domain, so "*.example.com" blocks
+ * example.com and everything below it.
+ */
 static int
 host_match(const char *pat, const char *host)
 {
 	size_t lp = strlen(pat), lh = strlen(host);
 
-	if (lp == 0 || lh < lp)
+	if (lp == 0)
+		return 0;
+	if (strpbrk(pat, "*?") != NULL) {
+		if (pat[0] == '*' && pat[1] == '.' && strpbrk(pat + 2, "*?") == NULL &&
+		    host_match(pat + 2, host))
+			return 1;
+		return fnmatch(pat, host, FNM_CASEFOLD) == 0;
+	}
+	if (lh < lp)
 		return 0;
 	if (strcasecmp(host + lh - lp, pat) != 0)
 		return 0;
 	return lh == lp || host[lh - lp - 1] == '.';
+}
+
+/* ---- signed-in users (written by the portal): client address -> user name ---- */
+
+static struct {
+	addr_t a;
+	char user[48];
+} sess[L7_MAX_SESSIONS];
+static int nsess;
+
+int
+sess_load(const char *path)
+{
+	FILE *f;
+	char line[256];
+	int n = 0;
+
+	if (path == NULL || *path == '\0' || (f = fopen(path, "r")) == NULL) {
+		nsess = 0;
+		return 0;
+	}
+	while (fgets(line, sizeof(line), f) && n < L7_MAX_SESSIONS) {
+		char *tab, *nl;
+
+		if ((nl = strpbrk(line, "\r\n")) != NULL)
+			*nl = '\0';
+		if (line[0] == '#' || (tab = strchr(line, '\t')) == NULL)
+			continue;
+		*tab++ = '\0';
+		if (addr_parse(line, &sess[n].a) != 0 || *tab == '\0')
+			continue;
+		snprintf(sess[n].user, sizeof(sess[n].user), "%s", tab);
+		n++;
+	}
+	fclose(f);
+	nsess = n;
+	return n;
+}
+
+const char *
+sess_user(const addr_t *a)
+{
+	int i;
+
+	for (i = 0; i < nsess; i++)
+		if (sess[i].a.af == a->af && memcmp(sess[i].a.a, a->a, a->af == AF_INET ? 4 : 16) == 0)
+			return sess[i].user;
+	return NULL;
 }
 
 policy_t *
@@ -123,11 +187,18 @@ policy_find(const addr_t *client, const char *master, const char *app, const cha
 
 	for (i = 0; i < npols; i++) {
 		policy_t *p = &pols[i];
-		int src_ok = (p->ncidr == 0), hit = 0;
+		int src_ok = (p->ncidr == 0 && !p->restrict_src), hit = 0;
 
 		for (j = 0; j < p->ncidr && !src_ok; j++)
 			if (cidr_match(&p->cidr[j], client))
 				src_ok = 1;
+		if (!src_ok && p->nusers) {
+			const char *u = sess_user(client);
+
+			for (j = 0; u && j < p->nusers && !src_ok; j++)
+				if (strcasecmp(p->users[j], u) == 0)
+					src_ok = 1;
+		}
 		if (!src_ok || !sched_active(p))
 			continue;
 		for (j = 0; j < p->napps && !hit; j++)

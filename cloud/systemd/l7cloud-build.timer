@@ -1,9 +1,9 @@
 [Unit]
-Description=Rebuild os-layer7security feed lists daily
+Description=Rebuild os-layer7security feed lists every hour
 
 [Timer]
-OnCalendar=*-*-* 03:30:00
-RandomizedDelaySec=900
+OnCalendar=*-*-* *:17:00
+RandomizedDelaySec=600
 Persistent=true
 
 [Install]

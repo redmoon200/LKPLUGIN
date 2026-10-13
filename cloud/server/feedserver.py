@@ -5,12 +5,16 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 # Minimal read-only feed server for os-layer7security.
-#   GET /feeds/<category>.txt   domain list (ETag / If-None-Match supported)
-#   GET /feeds/manifest.json    what was built and from where
-#   GET /health                 liveness probe
+#   GET /feeds/<category>.txt        domain list (ETag / If-None-Match supported)
+#   GET /feeds/ip/<id>.txt           IP threat list
+#   GET /feeds/hashes/<algo>.txt     malware hashes (sha256, sha1, md5)
+#   GET /feeds/yara/index.json       signature files with checksums; /feeds/yara/<file>.yar
+#   GET /feeds/manifest.json         what was built and from where
+#   GET /health                      liveness probe
 # Only whitelisted category names are served; nothing else on disk is reachable.
 
 import argparse
+import gzip
 import hashlib
 import http.server
 import json
@@ -19,8 +23,10 @@ import re
 import socketserver
 import time
 
-CATEGORIES = ('ads', 'trackers', 'malware', 'phishing', 'adult', 'gambling', 'social', 'streaming', 'games')
-NAME = re.compile(r'^/feeds/(?:(?:' + '|'.join(CATEGORIES) + r')\.txt|manifest\.json|ip2country-v[46]\.tsv\.gz)$')
+CATEGORIES = ('ads', 'trackers', 'malware', 'phishing', 'adult', 'gambling', 'social', 'streaming', 'games', 'botnet')
+NAME = re.compile(r'^/feeds/(?:(?:' + '|'.join(CATEGORIES) + r')\.txt|manifest\.json|ip2country-v[46]\.tsv\.gz'
+                  r'|ip/(?:c2|compromised|attackers|drop|tor)\.txt|hashes/(?:sha256|sha1|md5)\.txt'
+                  r'|yara/index\.json|yara/[A-Za-z0-9_.-]{1,80}\.yar)$')
 STARTED = int(time.time())
 
 
@@ -51,7 +57,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not NAME.match(path):
             self._send(404, b'not found\n')
             return
-        fname = os.path.join(self.root, os.path.basename(path))
+        fname = os.path.join(self.root, path[len('/feeds/'):])
         try:
             with open(fname, 'rb') as f:
                 data = f.read()
@@ -64,7 +70,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         ctype = ('application/json' if path.endswith('.json') else
                  'application/gzip' if path.endswith('.gz') else 'text/plain; charset=utf-8')
-        self._send(200, data, ctype, {'ETag': etag, 'Cache-Control': 'max-age=300'})
+        extra = {'ETag': etag, 'Cache-Control': 'max-age=300'}
+        if (len(data) > 4096 and not path.endswith('.gz') and 'gzip' in self.headers.get('Accept-Encoding', '')):
+            data = gzip.compress(data, 6)
+            extra['Content-Encoding'] = 'gzip'
+        self._send(200, data, ctype, extra)
 
     def log_message(self, fmt, *args):
         print('%s %s' % (self.address_string(), fmt % args), flush=True)
