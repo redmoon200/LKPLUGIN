@@ -599,7 +599,7 @@
                 <Default>selected</Default>
                 <Required>Y</Required>
                 <OptionValues>
-                    <selected>Only the sites listed below, AI services and download sites</selected>
+                    <selected>Listed sites only (safest)</selected>
                     <all>All HTTPS except the exclusions</all>
                 </OptionValues>
             </scope>
@@ -607,8 +607,8 @@
                 <Default>restricted</Default>
                 <Required>Y</Required>
                 <OptionValues>
-                    <restricted>Restricted CA (can only sign the listed sites)</restricted>
-                    <full>Full CA (can sign any site)</full>
+                    <restricted>Restricted (listed sites only)</restricted>
+                    <full>Full (any site)</full>
                 </OptionValues>
             </caMode>
             <sites type="CSVListField">
