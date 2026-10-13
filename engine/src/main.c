@@ -253,7 +253,7 @@ flow_persist(flow_t *f, int final)
 		f->t_written = now;
 		if (f->db_id == 0)
 			return;
-	} else if (!final && (!f->dirty || now - f->t_written < 15)) {
+	} else if (!final && (!f->dirty || now - f->t_written < 5)) {
 		return;
 	}
 	store_flow_update(f->db_id, (time_t)(f->t_last_ms / 1000), f->bytes[0], f->bytes[1],
@@ -885,8 +885,8 @@ reload_policies(void)
 
 	pf_flush_all(&cfg);
 	policy_set(buf, n);
-	l7_log("loaded %d policies, %d bindings, %d geo ranges", n,
-	    dev_load_bindings(cfg.bindings_path), geo_load(cfg.geo_dir));
+	l7_log("loaded %d policies, %d bindings, %d geo ranges, %d sessions", n,
+	    dev_load_bindings(cfg.bindings_path), geo_load(cfg.geo_dir), sess_load(cfg.sessions_path));
 }
 
 /* ---------------------------------------------------------------- main */
@@ -895,7 +895,8 @@ int
 main(int argc, char **argv)
 {
 	int i, opened = 0;
-	time_t last_sweep = 0, last_status = 0, last_prune = 0, last_expire = 0;
+	time_t last_sweep = 0, last_status = 0, last_prune = 0, last_expire = 0, last_sess = 0, sess_mtime = 0;
+	off_t sess_size = -1;
 	char errbuf[PCAP_ERRBUF_SIZE];
 	struct pollfd pfd[L7_MAX_IFACES];
 
@@ -1010,6 +1011,16 @@ main(int argc, char **argv)
 			reload_policies();
 		}
 		store_tick(0);
+		if (cfg.sessions_path[0] && now - last_sess >= 2) {
+			struct stat sb;
+
+			last_sess = now;
+			if (stat(cfg.sessions_path, &sb) == 0 && (sb.st_mtime != sess_mtime || sb.st_size != sess_size)) {
+				sess_mtime = sb.st_mtime;
+				sess_size = sb.st_size;
+				sess_load(cfg.sessions_path);
+			}
+		}
 		if (now - last_sweep >= 2) {
 			sweep(0);
 			last_sweep = now;

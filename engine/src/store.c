@@ -62,6 +62,7 @@ store_open(const char *path)
 	exec("CREATE INDEX IF NOT EXISTS devices_seen ON devices(last_seen)");
 	exec("CREATE INDEX IF NOT EXISTS flows_end ON flows(ts_end)");
 	exec("CREATE INDEX IF NOT EXISTS flows_client ON flows(client)");
+	exec("CREATE INDEX IF NOT EXISTS flows_server ON flows(server)");
 	exec("CREATE INDEX IF NOT EXISTS flows_app ON flows(app)");
 	exec("CREATE TABLE IF NOT EXISTS events("
 	    "id INTEGER PRIMARY KEY, ts INTEGER, type TEXT, client TEXT, server TEXT,"

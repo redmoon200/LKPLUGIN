@@ -116,11 +116,60 @@ function zone_lines(array $domains, $mode, &$count)
     return $out;
 }
 
+/** zones that always resolve normally, even below a blocked parent (allow lists) */
+function allow_lines(array $allow)
+{
+    $out = '';
+    foreach (array_keys($allow) as $d) {
+        $out .= "local-zone: \"$d.\" transparent\n";
+    }
+    return $out;
+}
+
+/** Google country domains that get safe search */
+const SAFE_GOOGLE = ['com', 'co.uk', 'de', 'fr', 'es', 'it', 'nl', 'pl', 'ru', 'ca', 'com.au', 'co.in', 'co.jp', 'com.br',
+    'com.mx', 'com.tr', 'co.za', 'se', 'no', 'fi', 'dk', 'at', 'ch', 'be', 'pt', 'gr', 'cz', 'ro', 'hu', 'ie', 'co.nz',
+    'com.sg', 'com.hk', 'co.kr', 'com.ar', 'cl', 'com.co', 'com.pk', 'com.eg', 'com.ng', 'co.il', 'ae', 'com.sa', 'ua'];
+
+/** Unbound lines that force safe search / YouTube restricted mode with CNAME answers */
+function safe_search_lines($general)
+{
+    $out = '';
+    $cname = function ($name, $target) {
+        return "local-zone: \"$name.\" redirect\nlocal-data: \"$name. 3600 IN CNAME $target.\"\n";
+    };
+    if ($general['safeSearch']) {
+        foreach (SAFE_GOOGLE as $tld) {
+            $out .= $cname('www.google.' . $tld, 'forcesafesearch.google.com');
+        }
+        $out .= $cname('www.bing.com', 'strict.bing.com');
+        $out .= $cname('duckduckgo.com', 'safe.duckduckgo.com');
+        $out .= $cname('www.duckduckgo.com', 'safe.duckduckgo.com');
+        $out .= $cname('pixabay.com', 'safesearch.pixabay.com');
+    }
+    if ($general['youtubeMode'] !== 'off') {
+        $target = $general['youtubeMode'] === 'strict' ? 'restrict.youtube.com' : 'restrictmoderate.youtube.com';
+        foreach (['www.youtube.com', 'm.youtube.com', 'youtubei.googleapis.com', 'youtube.googleapis.com',
+                  'www.youtube-nocookie.com'] as $h) {
+            $out .= $cname($h, $target);
+        }
+    }
+    return $out;
+}
+
 /** build the Unbound include; returns true when the file changed */
 function build_dns($general, $policies)
 {
     $path = UNBOUND_FILE;
-    if (!$general['enabled'] || !$general['dnsFilter']) {
+    $cfs = $general['dnsFilter'];
+    $web = false;
+    foreach ($policies as $p) {
+        if (($p['module'] ?? '') === 'web' && !empty($p['dnsDomains'])) {
+            $web = true;
+        }
+    }
+    $safe = $general['safeSearch'] || $general['youtubeMode'] !== 'off';
+    if (!$general['enabled'] || (!$cfs && !$web && !$safe)) {
         if (is_file($path)) {
             unlink($path);
             return true;
@@ -130,21 +179,31 @@ function build_dns($general, $policies)
     $mode = $general['dnsMode'];
     $count = 0;
     $global = [];
-    foreach ($general['dnsCategories'] as $cat) {
-        $global += category_domains($cat);
+    $allowGlobal = [];
+    if ($cfs) {
+        foreach ($general['dnsCategories'] as $cat) {
+            $global += category_domains($cat);
+        }
+        foreach ($general['dnsBlock'] as $d) {
+            if (valid_domain($d)) {
+                $global[$d] = true;
+            }
+        }
     }
-    foreach ($general['dnsBlock'] as $d) {
-        if (valid_domain($d)) {
-            $global[$d] = true;
+    foreach ($general['dnsAllow'] as $d) {
+        if ($cfs && valid_domain($d)) {
+            $allowGlobal[$d] = true;
         }
     }
     /* per source-network groups (policies that are in their schedule window) */
     $byNet = [];
+    $allowByNet = [];
     foreach ($policies as $p) {
-        if ($p['action'] !== 'block' || (empty($p['dnsCategories']) && empty($p['dnsDomains']))) {
+        $isWeb = ($p['module'] ?? '') === 'web';
+        if ((!$isWeb && !$cfs) || (empty($p['dnsCategories']) && empty($p['dnsDomains']))) {
             continue;
         }
-        if (!PolicyCompiler::active($p)) {
+        if (!in_array($p['action'], ['block', 'allow'], true) || !PolicyCompiler::active($p)) {
             continue;
         }
         $set = [];
@@ -156,28 +215,39 @@ function build_dns($general, $policies)
                 $set[$d] = true;
             }
         }
+        if ($p['action'] === 'allow') {
+            if (empty($p['sources'])) {
+                $allowGlobal += $set;
+            }
+            foreach ($p['sources'] as $net) {
+                $allowByNet[$net] = ($allowByNet[$net] ?? []) + $set;
+            }
+            continue;
+        }
         if (empty($p['sources'])) {
             $global += $set;
             continue;
         }
         foreach ($p['sources'] as $net) {
-            if (strpos($net, ':') === false) {
-                /* views are keyed by IPv4 and IPv6 networks alike */
-            }
             $byNet[$net] = ($byNet[$net] ?? []) + $set;
         }
     }
-    $global = filter_allowed($global, $general['dnsAllow']);
+    foreach (array_keys($allowByNet) as $net) {
+        $byNet[$net] = $byNet[$net] ?? [];
+    }
+    $global = filter_allowed($global, array_keys($allowGlobal));
     $conf = "# generated by os-layer7security, do not edit\nserver:\n";
     $views = '';
     $n = 0;
     foreach ($byNet as $net => $set) {
         $n++;
-        $set = filter_allowed($set, $general['dnsAllow']);
+        $allowHere = $allowGlobal + ($allowByNet[$net] ?? []);
+        $set = filter_allowed($set, array_keys($allowHere));
         $conf .= "access-control-view: $net l7v_$n\n";
-        $views .= "view:\nname: \"l7v_$n\"\nview-first: yes\n" . zone_lines($set, $mode, $count) . "\n";
+        $views .= "view:\nname: \"l7v_$n\"\nview-first: yes\n" . zone_lines($set, $mode, $count) .
+            allow_lines($allowHere) . "\n";
     }
-    $conf .= zone_lines($global, $mode, $count) . "\n" . $views;
+    $conf .= zone_lines($global, $mode, $count) . allow_lines($allowGlobal) . safe_search_lines($general) . "\n" . $views;
     return write_if_changed($path, $conf);
 }
 
@@ -209,6 +279,73 @@ function sync_static_arp($general, $bindings)
     file_put_contents(ARP_STATE, json_encode($want));
 }
 
+/**
+ * Web Control IP rules: one table file per group of client sources (the pf hook
+ * registers the tables from these files). Returns the networks that were not
+ * blocked at the previous apply, so their open connections can be cut.
+ */
+function sync_web_ip($general)
+{
+    $state = DB_DIR . '/webip_state.json';
+    $old = json_decode(@file_get_contents($state), true);
+    $old = is_array($old) ? $old : [];
+    $groups = $general['enabled'] ? PolicyCompiler::webIpGroups($general) : [];
+    $keep = [];
+    $new = [];
+    foreach ($groups as $g) {
+        write_if_changed($g['file'], implode("\n", $g['entries']) . "\n");
+        $keep[$g['file']] = true;
+        foreach ($g['blocked'] as $net) {
+            $new[$net] = true;
+        }
+    }
+    foreach (glob(DB_DIR . '/webip_[0-9]*.txt') ?: [] as $file) {
+        if (!isset($keep[$file])) {
+            unlink($file);
+        }
+    }
+    file_put_contents($state, json_encode(array_keys($new)));
+    return array_values(array_diff(array_keys($new), $old));
+}
+
+/** make sure every enabled threat list has a file (empty until the first download) */
+function sync_threat_files($general)
+{
+    $dir = DB_DIR . '/threat';
+    if (!is_dir($dir)) {
+        mkdir($dir, 0750, true);
+    }
+    foreach (PolicyCompiler::threatLists($general) as $t) {
+        if (!is_file($t['file'])) {
+            touch($t['file']);
+        }
+    }
+}
+
+/** earliest expiry of a temporary Web Control rule, read by the once-a-minute expiry job */
+function write_expiry()
+{
+    $next = 0;
+    foreach (PolicyCompiler::webRules() as $r) {
+        if ($r['expires'] > 0 && ($next === 0 || $r['expires'] < $next)) {
+            $next = $r['expires'];
+        }
+    }
+    write_if_changed(DB_DIR . '/web_expiry', $next . "\n");
+}
+
+/** drop the connections that already use a newly blocked network */
+function kill_blocked_states(array $nets)
+{
+    foreach ($nets as $net) {
+        if (PolicyCompiler::normalizeIp($net) !== null) {
+            $any = strpos($net, ':') === false ? '0.0.0.0/0' : '::/0';
+            exec('/sbin/pfctl -k ' . escapeshellarg($any) . ' -k ' . escapeshellarg($net) . ' 2>&1');
+            exec('/sbin/pfctl -k ' . escapeshellarg($net) . ' 2>&1');
+        }
+    }
+}
+
 function main($argv)
 {
     ensure_dirs();
@@ -225,6 +362,10 @@ function main($argv)
     /* logging what people do with AI services needs the privacy notice to be acknowledged first */
     if ($general['enabled'] && $general['auditEnabled'] && !$general['privacyAck']) {
         return 'AI audit logging is enabled but the privacy notice has not been acknowledged (AI Audit > Privacy).';
+    }
+
+    if (count($policies) > 240) {
+        return 'Too many rules for the engine (' . count($policies) . ', limit 240). Use the content filter categories for long website lists.';
     }
 
     if (in_array('--dns-only', $argv)) {
@@ -248,6 +389,7 @@ function main($argv)
     $conf .= 'ai_inspect=' . (!empty($general['aiInspect']) ? 1 : 0) . PHP_EOL;
     $conf .= 'ai_quic=' . ['off' => 0, 'ai' => 1, 'all' => 2][$general['aiQuic']] . PHP_EOL;
     $conf .= 'bindings=' . CONF_DIR . '/bindings.conf' . PHP_EOL;
+    $conf .= 'sessions=' . DB_DIR . '/sessions.tsv' . PHP_EOL;
     $conf .= 'geo_dir=' . GEO_DIR . PHP_EOL;
     foreach ($general['ifids'] as $ifid) {
         $net = PolicyCompiler::network($ifid);
@@ -271,6 +413,9 @@ function main($argv)
         exec('/usr/local/opnsense/scripts/OPNsense/Layer7Security/geo.py build 2>&1');
     }
     sync_static_arp($general, $bindings);
+    $webIpKill = sync_web_ip($general);
+    sync_threat_files($general);
+    write_expiry();
 
     /* policies.conf, one TAB separated line per policy */
     $lines = "# generated by os-layer7security, do not edit\n";
@@ -290,6 +435,8 @@ function main($argv)
                 !empty($p['ai']) ? 'ai=' . $p['ai'] : '',
                 !empty($p['inspect']) ? 'inspect' : '',
                 !empty($p['quic']) ? 'quic' : '',
+                !empty($p['restrict']) ? 'restrict' : '',
+                !empty($p['users']) ? 'users=' . implode('|', $p['users']) : '',
             ])) ?: '-',
         ]) . "\n";
     }
@@ -303,8 +450,14 @@ function main($argv)
         $backend->configdRun('layer7security catalog');
     }
 
+    /* cloud data that is enabled but not downloaded yet (category lists, threat lists, hashes, signatures) */
+    if ($general['enabled'] && $general['feedUrl'] !== '') {
+        $backend->configdRun('layer7security feed-fill');
+    }
+
     /* pf tables and rules */
     $backend->configdRun('filter reload');
+    kill_blocked_states($webIpKill);
 
     /* DNS filter */
     if (build_dns($general, $policies)) {

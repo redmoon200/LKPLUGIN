@@ -12,7 +12,6 @@ class UsersController extends \OPNsense\Base\IndexController
 {
     public function indexAction()
     {
-        $this->view->pick('OPNsense/Layer7Security/users');
-        $this->view->formDialogUser = $this->getForm('dialogUser');
+        return $this->response->redirect('/ui/layer7security/access');
     }
 }

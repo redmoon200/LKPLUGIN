@@ -11,7 +11,7 @@ mkdir -p /usr/local/libexec/layer7security
 install -m 755 /root/engine/l7engine /usr/local/libexec/layer7security/l7engine
 chmod 755 /usr/local/etc/rc.d/layer7security /usr/local/etc/rc.d/layer7security_proxy
 chmod 755 /usr/local/opnsense/scripts/OPNsense/Layer7Security/*
-rm -f /tmp/opnsense_menu_cache.xml /tmp/opnsense_acl_cache.json
+rm -f /tmp/opnsense_menu_cache.xml /tmp/opnsense_acl_cache.json /var/lib/php/tmp/opnsense_menu_cache.xml /var/lib/php/tmp/opnsense_acl_cache.json
 service configd restart >/dev/null 2>&1
 service php_fpm restart >/dev/null 2>&1
 echo deployed

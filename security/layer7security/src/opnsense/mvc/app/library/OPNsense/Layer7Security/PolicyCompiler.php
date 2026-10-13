@@ -94,6 +94,11 @@ class PolicyCompiler
             'avEnabled' => (string)$mdl->av->enabled === '1',
             'avHttp' => (string)$mdl->av->scanHttp === '1',
             'avHttpsDomains' => array_map('strtolower', self::csv($mdl->av->httpsDomains)),
+            'webEnabled' => (string)$mdl->webcontrol->enabled === '1',
+            'safeSearch' => (string)$mdl->cfs->safeSearch === '1',
+            'youtubeMode' => (string)$mdl->cfs->youtube ?: 'off',
+            'threatIps' => self::csv($mdl->cfs->threatIps),
+            'threatDirection' => (string)$mdl->cfs->threatDirection ?: 'both',
         ], $mdl);
     }
 
@@ -227,6 +232,10 @@ class PolicyCompiler
 
         $result = [];
         $id = 0;
+        foreach (self::webPolicies(self::general()) as $web) {
+            $id++;
+            $result[] = array_merge($web, ['id' => $id, 'table' => 'l7_blk_' . $id]);
+        }
         foreach (self::aiPolicies(self::general()) as $ai) {
             $id++;
             $result[] = array_merge($ai, ['id' => $id, 'table' => 'l7_blk_' . $id]);
@@ -242,9 +251,11 @@ class PolicyCompiler
                     $sources[] = $net;
                 }
             }
+            $unames = [];
             foreach (self::csv($p->users) as $uid) {
                 $user = $mdl->getNodeByReference('users.user.' . $uid);
                 if ($user !== null) {
+                    $unames[] = self::userKey((string)$user->name);
                     foreach (self::csv($user->addresses) as $addr) {
                         $sources[] = $addr;
                     }
@@ -281,9 +292,209 @@ class PolicyCompiler
                 'dnsDomains' => array_map('strtolower', self::csv($p->dnsDomains)),
                 'table' => 'l7_blk_' . $id,
                 'ai' => '', 'inspect' => false, 'quic' => false,
+                'module' => (string)$p->module ?: 'app',
+                'users' => array_values(array_unique($unames)),
+                'restrict' => !empty($sources) || !empty($unames),
             ];
         }
         return $result;
+    }
+
+    /** a user name as used in the session map and the engine (no separators) */
+    public static function userKey($name)
+    {
+        return preg_replace('/[\s,|:;\x00-\x1f]/', '_', trim((string)$name));
+    }
+
+    /** lower-case host name from what an administrator typed ("https://www.Example.com/path" -> www.example.com) */
+    public static function normalizeSite($value)
+    {
+        $v = strtolower(trim((string)$value));
+        $v = preg_replace('#^[a-z][a-z0-9+.-]*://#', '', $v);
+        $v = preg_replace('#[/?\#].*$#', '', $v);
+        $v = preg_replace('#^[^@]*@#', '', $v);
+        $v = preg_replace('#:[0-9]+$#', '', $v);
+        $v = rtrim($v, '.');
+        if (
+            $v === '' || strlen($v) > 90 || strpos($v, '..') !== false ||
+            !preg_match('/^(\*\.?)?[a-z0-9?*]([a-z0-9._?*-]*[a-z0-9?*])?$/', $v)
+        ) {
+            return null;
+        }
+        return $v;
+    }
+
+    /** the DNS zone that blocks the same names as a pattern, null when DNS cannot express it */
+    public static function dnsZone($pattern)
+    {
+        $z = preg_replace('/^\*\.?/', '', $pattern);
+        if ($z === '' || strpbrk($z, '*?') !== false || strpos($z, '.') === false) {
+            return null;
+        }
+        return $z;
+    }
+
+    /**
+     * Web Control rules that are active now: enabled, not expired, normalised.
+     */
+    public static function webRules($now = null)
+    {
+        $now = $now ?? time();
+        $mdl = new Layer7Security();
+        $out = [];
+        foreach ($mdl->webcontrol->rule->iterateItems() as $uuid => $r) {
+            if ((string)$r->enabled !== '1') {
+                continue;
+            }
+            $exp = (int)(string)$r->expires;
+            if ($exp > 0 && $exp <= $now) {
+                continue;
+            }
+            $kind = (string)$r->kind;
+            $value = $kind === 'domain' ? self::normalizeSite((string)$r->value) : self::normalizeIp((string)$r->value);
+            if ($value === null) {
+                continue;
+            }
+            $out[] = [
+                'uuid' => $uuid, 'kind' => $kind, 'value' => $value, 'action' => (string)$r->action,
+                'sources' => self::csv($r->sources), 'expires' => $exp, 'origin' => (string)$r->origin,
+                'created' => (int)(string)$r->created,
+            ];
+        }
+        usort($out, function ($a, $b) {
+            return [$a['created'], $a['value']] <=> [$b['created'], $b['value']];
+        });
+        return $out;
+    }
+
+    /** IPv4/IPv6 address or network in canonical text form, null when invalid */
+    public static function normalizeIp($value)
+    {
+        $v = strtolower(trim((string)$value));
+        $bits = null;
+        if (strpos($v, '/') !== false) {
+            [$v, $bits] = explode('/', $v, 2);
+            if (!ctype_digit($bits)) {
+                return null;
+            }
+            $bits = (int)$bits;
+        }
+        $v4 = filter_var($v, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
+        $v6 = !$v4 && filter_var($v, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
+        if (!$v4 && !$v6) {
+            return null;
+        }
+        if ($bits !== null && ($bits < 0 || $bits > ($v4 ? 32 : 128))) {
+            return null;
+        }
+        return $bits === null ? $v : $v . '/' . $bits;
+    }
+
+    /** host patterns per engine policy (the engine keeps 128 per policy) */
+    private const WEB_CHUNK = 100;
+
+    /**
+     * Engine policies for Web Control domain rules: allow rules first (an allow
+     * wins over every block), then block rules grouped by who they apply to.
+     */
+    public static function webPolicies(array $general)
+    {
+        if (!$general['webEnabled']) {
+            return [];
+        }
+        $groups = ['allow' => [], 'block' => []];
+        foreach (self::webRules() as $r) {
+            if ($r['kind'] !== 'domain') {
+                continue;
+            }
+            $key = implode(',', $r['sources']);
+            $groups[$r['action']][$key]['sources'] = $r['sources'];
+            $groups[$r['action']][$key]['hosts'][$r['value']] = true;
+        }
+        $out = [];
+        foreach ($groups as $action => $byScope) {
+            ksort($byScope);
+            foreach ($byScope as $scope => $g) {
+                $hosts = array_keys($g['hosts']);
+                foreach (array_chunk($hosts, self::WEB_CHUNK) as $n => $chunk) {
+                    $zones = [];
+                    foreach ($chunk as $h) {
+                        $z = self::dnsZone($h);
+                        if ($z !== null) {
+                            $zones[] = $z;
+                        }
+                    }
+                    $out[] = [
+                        'uuid' => 'web-' . $action . '-' . md5($scope) . '-' . $n,
+                        'name' => 'Web Control: ' . $action . ($scope === '' ? '' : ' for ' . substr($scope, 0, 40)) .
+                            (count($hosts) > self::WEB_CHUNK ? ' (' . ($n + 1) . ')' : ''),
+                        'action' => $action, 'ifids' => [], 'devices' => [], 'sources' => $g['sources'],
+                        'apps' => [], 'cats' => [], 'hosts' => $chunk, 'dayMask' => 0x7f, 'start' => '00:00',
+                        'end' => '00:00', 'dnsCategories' => [], 'dnsDomains' => $zones, 'ai' => '',
+                        'inspect' => false, 'quic' => false, 'module' => 'web', 'users' => [],
+                        'restrict' => !empty($g['sources']),
+                    ];
+                }
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * IP rules of Web Control as pf table groups: one table per set of client
+     * sources. Allow rules apply to everyone and are entered into every table
+     * as negated (!) entries, which pf resolves by the most specific match.
+     */
+    public static function webIpGroups(array $general)
+    {
+        if (!$general['webEnabled']) {
+            return [];
+        }
+        $allow = [];
+        $groups = [];
+        foreach (self::webRules() as $r) {
+            if ($r['kind'] !== 'ip') {
+                continue;
+            }
+            if ($r['action'] === 'allow') {
+                $allow[$r['value']] = true;
+                continue;
+            }
+            $key = implode(',', $r['sources']);
+            $groups[$key]['sources'] = $r['sources'];
+            $groups[$key]['blocked'][$r['value']] = true;
+        }
+        ksort($groups);
+        $out = [];
+        $n = 0;
+        foreach ($groups as $g) {
+            $n++;
+            $blocked = array_keys($g['blocked']);
+            $entries = $blocked;
+            foreach (array_keys($allow) as $a) {
+                $entries[] = '!' . $a;
+            }
+            $out[] = [
+                'id' => $n, 'table' => 'l7_ipb_' . $n, 'sources' => $g['sources'], 'entries' => $entries,
+                'blocked' => $blocked, 'file' => '/var/db/layer7security/webip_' . $n . '.txt',
+            ];
+        }
+        return $out;
+    }
+
+    /** threat IP lists the cloud server offers */
+    public const THREAT_IP_LISTS = ['c2', 'compromised', 'attackers', 'drop', 'tor'];
+
+    /** enabled threat IP lists with their pf table and file */
+    public static function threatLists(array $general)
+    {
+        $out = [];
+        foreach ($general['threatIps'] as $id) {
+            if (in_array($id, self::THREAT_IP_LISTS, true)) {
+                $out[] = ['id' => $id, 'table' => 'l7_thr_' . $id, 'file' => '/var/db/layer7security/threat/' . $id . '.txt'];
+            }
+        }
+        return $out;
     }
 
     /** normalise a MAC address to lower-case aa:bb:cc:dd:ee:ff, null when invalid */
@@ -434,7 +645,8 @@ class PolicyCompiler
                 'https_domains' => $general['avHttpsAllowed'] ? $general['avHttpsDomains'] : [],
                 'skip' => array_map('strtolower', self::csv($av->skipDomains)),
                 'maxSizeMb' => (int)(string)$av->maxSizeMb, 'failMode' => (string)$av->failMode,
-                'hashAction' => (string)$av->hashAction,
+                'hashAction' => (string)$av->hashAction, 'yaraAction' => (string)$av->yaraAction,
+                'useCloud' => (string)$av->useCloud === '1',
                 'types' => ['executable' => (string)$av->executableAction, 'script' => (string)$av->scriptAction,
                             'package' => (string)$av->packageAction, 'archive' => (string)$av->archiveAction],
                 'customHashes' => array_map('strtolower', self::csv($av->customHashes)),

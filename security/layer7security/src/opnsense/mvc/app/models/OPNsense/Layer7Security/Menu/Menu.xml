@@ -1,18 +1,22 @@
 <menu>
-    <Services>
-        <Layer7Security VisibleName="Layer 7 Security" cssClass="fa fa-shield fa-fw">
-            <Dashboard order="10" url="/ui/layer7security/dashboard"/>
-            <Flows order="20" url="/ui/layer7security/flows"/>
-            <Policies order="30" url="/ui/layer7security/policies"/>
-            <Users order="40" url="/ui/layer7security/users"/>
-            <DnsFiltering VisibleName="DNS Filtering" order="50" url="/ui/layer7security/dns"/>
-            <AiServices VisibleName="AI Services" order="52" url="/ui/layer7security/ai"/>
-            <AiInspection VisibleName="AI Inspection" order="53" url="/ui/layer7security/inspection"/>
-            <AiAudit VisibleName="AI Audit" order="54" url="/ui/layer7security/audit"/>
-            <Antivirus VisibleName="Antivirus" order="56" url="/ui/layer7security/antivirus"/>
-            <MacBinding VisibleName="MAC Binding" order="55" url="/ui/layer7security/macbinding"/>
-            <GeoIP VisibleName="GeoIP" order="57" url="/ui/layer7security/geoip"/>
-            <Settings order="60" url="/ui/layer7security/settings"/>
-        </Layer7Security>
-    </Services>
+    <Layer7 VisibleName="Layer 7" cssClass="fa fa-eye fa-fw" order="35">
+        <Dashboard VisibleName="Overview" order="10" url="/ui/layer7security/dashboard"/>
+        <Live VisibleName="Live Sessions" order="20" url="/ui/layer7security/live"/>
+        <Access VisibleName="Users and Access" order="30" url="/ui/layer7security/access"/>
+        <MacBinding VisibleName="MAC Binding" order="40" url="/ui/layer7security/macbinding"/>
+        <GeoIP VisibleName="GeoIP" order="50" url="/ui/layer7security/geoip"/>
+        <Settings VisibleName="Settings" order="90" url="/ui/layer7security/settings"/>
+    </Layer7>
+    <Protection VisibleName="Protection" cssClass="fa fa-shield fa-fw" order="36">
+        <WebControl VisibleName="Web Control" order="10" url="/ui/layer7security/webcontrol"/>
+        <AppControl VisibleName="Application Control" order="20" url="/ui/layer7security/appcontrol"/>
+        <Cfs VisibleName="CFS (Content Filtering)" order="30" url="/ui/layer7security/cfs"/>
+        <DpiSsl VisibleName="DPI-SSL" order="40" url="/ui/layer7security/dpissl"/>
+        <Antivirus VisibleName="Antivirus" order="50" url="/ui/layer7security/antivirus"/>
+    </Protection>
+    <AI VisibleName="AI" cssClass="fa fa-microchip fa-fw" order="37">
+        <AiService VisibleName="AI Service" order="10" url="/ui/layer7security/ai"/>
+        <AiInspection VisibleName="AI Inspection" order="20" url="/ui/layer7security/inspection"/>
+        <AiAudit VisibleName="AI Audit" order="30" url="/ui/layer7security/audit"/>
+    </AI>
 </menu>

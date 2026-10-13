@@ -12,6 +12,6 @@ class FlowsController extends \OPNsense\Base\IndexController
 {
     public function indexAction()
     {
-        $this->view->pick('OPNsense/Layer7Security/flows');
+        return $this->response->redirect('/ui/layer7security/live#tab-history');
     }
 }

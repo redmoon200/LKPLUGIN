@@ -1,0 +1,39 @@
+<form>
+    <field>
+        <id>rule.enabled</id>
+        <label>Enabled</label>
+        <type>checkbox</type>
+    </field>
+    <field>
+        <id>rule.kind</id>
+        <label>Type</label>
+        <type>dropdown</type>
+        <help>Website rules use names (wildcards allowed). IP rules use one address or a network.</help>
+    </field>
+    <field>
+        <id>rule.value</id>
+        <label>Website or IP address</label>
+        <type>text</type>
+        <help>Websites: example.com (the site and everything below it), *.example.com (the same), *example.com (any name ending in example.com), ad*.example.com. IP: 203.0.113.7 or 203.0.113.0/24.</help>
+    </field>
+    <field>
+        <id>rule.action</id>
+        <label>What to do</label>
+        <type>dropdown</type>
+        <help>Block stops access. Allow always lets it through, even when a block rule or a content-filter category would stop it.</help>
+    </field>
+    <field>
+        <id>rule.sources</id>
+        <label>Applies to devices</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Leave empty for everyone, or enter device addresses or networks (for example 10.77.0.25 or 10.77.0.0/24). Allow rules for IP addresses always apply to everyone.</help>
+    </field>
+    <field>
+        <id>rule.description</id>
+        <label>Note</label>
+        <type>text</type>
+        <help>Why this rule exists (optional).</help>
+    </field>
+</form>

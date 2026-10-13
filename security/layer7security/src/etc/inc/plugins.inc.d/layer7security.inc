@@ -51,6 +51,8 @@ function layer7security_firewall(Plugin $fw)
     $general = PolicyCompiler::general();
     layer7security_mac_anchor($fw, $general);
     layer7security_geo_rules($fw, $general);
+    layer7security_webip_rules($fw, $general);
+    layer7security_threat_rules($fw, $general);
     layer7security_ai_rules($fw, $general);
     layer7security_proxy_rules($fw, $general);
     foreach (PolicyCompiler::policies() as $policy) {
@@ -158,6 +160,60 @@ function layer7security_geo_rules(Plugin $fw, array $general)
 }
 
 /**
+ * Web Control IP rules: one table per group of client sources, filled from a
+ * file written by apply.php ("!" entries are the allow exceptions).
+ */
+function layer7security_webip_rules(Plugin $fw, array $general)
+{
+    foreach (PolicyCompiler::webIpGroups($general) as $g) {
+        if (!is_file($g['file'])) {
+            continue;
+        }
+        $fw->registerTable($g['table'], true, $g['file']);
+        $base = [
+            'type' => 'block', 'direction' => 'in', 'quick' => true, 'to' => '<' . $g['table'] . '>',
+            'label' => 'l7web_ip_' . $g['id'], 'descr' => 'Layer7 Web Control: blocked IP addresses',
+        ];
+        if (empty($g['sources'])) {
+            $fw->registerFilterRule(1, $base);
+            /* and nothing may come in from them either */
+            $fw->registerFilterRule(1, [
+                'type' => 'block', 'direction' => 'in', 'quick' => true, 'from' => '<' . $g['table'] . '>',
+                'label' => 'l7web_ipin_' . $g['id'], 'descr' => 'Layer7 Web Control: blocked IP addresses (inbound)',
+            ]);
+        } else {
+            foreach ($g['sources'] as $src) {
+                $fw->registerFilterRule(1, array_merge($base, ['from' => $src]));
+            }
+        }
+    }
+}
+
+/** known-bad address lists (botnet servers, hijacked networks, ...) downloaded from the cloud server */
+function layer7security_threat_rules(Plugin $fw, array $general)
+{
+    foreach (PolicyCompiler::threatLists($general) as $t) {
+        if (!is_file($t['file'])) {
+            continue;
+        }
+        $fw->registerTable($t['table'], true, $t['file']);
+        $out = [
+            'type' => 'block', 'direction' => 'in', 'quick' => true, 'to' => '<' . $t['table'] . '>',
+            'label' => 'l7thr_' . $t['id'], 'descr' => 'Layer7 CFS: threat list ' . $t['id'],
+        ];
+        foreach ($general['ifids'] as $ifid) {
+            $fw->registerFilterRule(1, array_merge($out, ['interface' => $ifid]));
+        }
+        if ($general['threatDirection'] === 'both') {
+            $fw->registerFilterRule(1, [
+                'type' => 'block', 'direction' => 'in', 'quick' => true, 'from' => '<' . $t['table'] . '>',
+                'label' => 'l7thr_in_' . $t['id'], 'descr' => 'Layer7 CFS: threat list ' . $t['id'] . ' (inbound)',
+            ]);
+        }
+    }
+}
+
+/**
  * AI services: tables the engine fills (inspection proxy redirect, QUIC block)
  * and the QUIC block rules. QUIC to AI services is dropped so clients fall back
  * to TCP/TLS, where the SNI is visible and the connection can be inspected.
@@ -229,6 +285,7 @@ function layer7security_cron()
     /* re-evaluate schedule windows for DNS filtering once a minute */
     return [
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security dns-schedule', '*']],
+        ['autocron' => ['/usr/local/sbin/configctl -d layer7security web-expire', '*']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security feed-update-auto', '17', '*/6']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security geo-update-auto', '41', '4', '*', '*', '1']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security audit-ingest', '*']],
