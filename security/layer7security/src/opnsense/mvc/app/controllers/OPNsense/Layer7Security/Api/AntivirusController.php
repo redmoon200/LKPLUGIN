@@ -14,6 +14,8 @@ use OPNsense\Core\Backend;
 /** antivirus for downloads: detections, hash and signature data, a hash lookup and a file scan */
 class AntivirusController extends ApiControllerBase
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     private function json($action, $params = [])
     {
         $be = new Backend();
@@ -64,7 +66,7 @@ class AntivirusController extends ApiControllerBase
         $cloudOk = is_array($cloud) && ($cloud['result'] ?? '') === 'ok' && (!empty($cloud['hashes']) || !empty($cloud['signatures']));
         $out['updated'] = !empty($own['updated']) || $cloudOk;
         if (!$out['updated'] && empty($out['error']) && is_array($cloud) && ($cloud['result'] ?? '') === 'skipped') {
-            $out['error'] = 'No cloud server address is set (Protection > CFS > Settings) and no extra hash list is configured.';
+            $out['error'] = 'No cloud server address is set (Layer 7 > License) and no extra hash list is configured.';
         }
         return $out;
     }

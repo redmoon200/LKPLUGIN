@@ -580,4 +580,7 @@ function main($argv)
     return 'OK';
 }
 
-echo main($argv) . "\n";
+$result = main($argv);
+/* remember which license state this apply was made for (license.php applies again when it changes) */
+@file_put_contents(DB_DIR . '/license_applied', \OPNsense\Layer7Security\License::status(true)['valid'] ? 'valid' : 'locked');
+echo $result . "\n";

@@ -1,0 +1,19 @@
+[Unit]
+Description=os-layer7security cloud dashboard (feed health, firewalls, license generator)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=l7cloud
+Group=l7cloud
+Environment=L7_CLOUD_DATA=/opt/l7cloud/data
+ExecStart=/usr/bin/python3 /opt/l7cloud/server/dashboard.py serve --port 8090
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/l7cloud
+
+[Install]
+WantedBy=multi-user.target

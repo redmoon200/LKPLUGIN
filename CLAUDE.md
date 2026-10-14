@@ -106,3 +106,9 @@ docs/                         ARCHITECTURE, USER-GUIDE, ENGINE-COMPARISON, PROGR
   `tests/ui_check.py`, `ui_crud*.py`, `ui_console.py`. Quick GUI/PHP/Python deploy without the
   engine build: `lab/sync-plugin.sh`. The OPNsense menu and ACL caches live in
   `/var/lib/php/tmp/` (not `/tmp`).
+- v0.5.0 adds the license module (`License.php`, `LicenseGate.php`, `license.php`, `license_cloud.py`,
+  `license.volt`; docs/LICENSING.md) and the cloud dashboard (`cloud/server/dashboard.py`, `dashboard.html`,
+  `cloudcore.py`, `store.py`, `licenselib.py`; port 8090, admin password in `~/.lk-secrets/cloud_admin.txt`).
+  The lab firewall must have a license: `tests/e2e.sh` activates a lifetime key through the dashboard API
+  (`tests/lic_helpers.sh`). Tests: `tests/test_license.py`, e2e section `lic` (`tests/e2e_v05_sections.sh`),
+  `tests/ui_cloud.py`. Deploy only the cloud code: `lab/deploy-cloud.sh`.

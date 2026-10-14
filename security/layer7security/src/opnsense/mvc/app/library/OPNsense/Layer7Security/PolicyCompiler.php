@@ -77,7 +77,9 @@ class PolicyCompiler
             }
         }
         return self::withDerived([
-            'enabled' => (string)$g->enabled === '1',
+            /* without a valid license everything is off (the network itself is untouched) */
+            'enabled' => (string)$g->enabled === '1' && !License::locked(),
+            'licenseLocked' => License::locked(),
             'enforce' => (string)$g->enforce === '1',
             'devices' => $devices,
             'ifids' => $ifs,

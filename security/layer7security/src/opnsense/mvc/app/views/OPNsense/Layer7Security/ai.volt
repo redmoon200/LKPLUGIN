@@ -36,9 +36,6 @@
         </div>
 
         <div id="services" class="tab-pane fade">
-            <div class="l7-hint">
-                {{ lang._('Pick what happens to each AI service for everybody. "Default" follows the setting in the Settings tab. Tick "Check content" to look for card numbers, passwords and source code in what people send (needs AI Inspection and DPI-SSL).') }}
-            </div>
             <div class="l7-scroll">
                 <table class="l7-table" id="tbl-svc">
                     <thead><tr><th>{{ lang._('Service') }}</th><th>{{ lang._('Websites') }}</th><th style="width:34em">{{ lang._('What to do') }}</th><th>{{ lang._('Check content') }}</th></tr></thead>
@@ -49,7 +46,6 @@
         </div>
 
         <div id="rules" class="tab-pane fade">
-            <div class="l7-hint">{{ lang._('Rules for certain devices, users or hours. The first rule that matches decides; services without a rule follow the default.') }}</div>
             <table id="grid-ai" class="table table-condensed table-hover table-striped" data-editDialog="DialogAi" data-editAlert="l7-pending">
                 <thead>
                     <tr>

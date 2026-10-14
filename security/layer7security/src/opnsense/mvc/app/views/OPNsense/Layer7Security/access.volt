@@ -34,10 +34,6 @@
         </div>
 
         <div id="tab-settings" class="tab-pane fade">
-            <div class="l7-hint">
-                <strong>{{ lang._('How sign-in works') }}</strong><br/>
-                {{ lang._('A device that is not signed in is sent to a login page when it opens a website. Websites over HTTPS stay blocked until the user has signed in. After signing in, the device address is linked to the user, so policies for that user apply to every connection of the device. Passwords are checked by this firewall (local users, LDAP, RADIUS).') }}
-            </div>
             <div class="l7-hint warn">
                 {{ lang._('Make sure your own computer is in "Never ask these devices" before you turn this on. The firewall web interface itself stays reachable.') }}
             </div>
@@ -46,9 +42,6 @@
         </div>
 
         <div id="tab-users" class="tab-pane fade">
-            <div class="l7-hint">
-                {{ lang._('Name people or devices by their IP addresses (use fixed DHCP leases). Rules in Application Control and Content Filtering can then target them by name, even without sign-in.') }}
-            </div>
             <table id="grid-users" class="table table-condensed table-hover table-striped" data-editDialog="DialogUser" data-editAlert="l7-pending">
                 <thead>
                     <tr>

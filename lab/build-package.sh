@@ -18,7 +18,7 @@ mkdir -p /root/plugins/security/layer7security
 REMOTE
 
 # 2. plugin tree (no stray ownership)
-tar -C "$ROOT/security/layer7security" -cf - . | opn "sh -c 'tar --no-same-owner -C /root/plugins/security/layer7security -xf -'"
+tar --exclude=__pycache__ -C "$ROOT/security/layer7security" -cf - . | opn "sh -c 'tar --no-same-owner -C /root/plugins/security/layer7security -xf -'"
 
 # 3. stage the engine binary and build the package
 opnsh <<'REMOTE'

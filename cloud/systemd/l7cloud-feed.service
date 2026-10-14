@@ -12,7 +12,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadOnlyPaths=/var/lib/l7cloud
+ReadWritePaths=/var/lib/l7cloud
 
 [Install]
 WantedBy=multi-user.target

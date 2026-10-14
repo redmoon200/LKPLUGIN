@@ -18,18 +18,6 @@
 
     <div class="tab-content">
         <div id="tab-rules" class="tab-pane fade in active">
-            <div class="l7-hint">
-                <strong>{{ lang._('How to write a website rule') }}</strong>
-                <table class="l7-table" style="margin-top:6px">
-                    <tbody>
-                        <tr><td class="mono">instagram.com</td><td>{{ lang._('instagram.com and every sub-domain (www.instagram.com, help.instagram.com ...)') }}</td></tr>
-                        <tr><td class="mono">*.instagram.com</td><td>{{ lang._('the same: the site and everything below it') }}</td></tr>
-                        <tr><td class="mono">*instagram.com</td><td>{{ lang._('every name that ends in instagram.com, also cdninstagram.com') }}</td></tr>
-                        <tr><td class="mono">ads*.example.com</td><td>{{ lang._('* stands for any text, ? for one character') }}</td></tr>
-                        <tr><td class="mono">203.0.113.0/24</td><td>{{ lang._('an IP address or network') }}</td></tr>
-                    </tbody>
-                </table>
-            </div>
             <div class="l7-toolbar">
                 <span class="l7-chip on" data-show="all">{{ lang._('All') }}</span>
                 <span class="l7-chip" data-show="domain">{{ lang._('Websites') }}</span>
@@ -79,7 +67,6 @@
         </div>
 
         <div id="tab-activity" class="tab-pane fade">
-            <div class="l7-hint">{{ lang._('Connections stopped by Web Control in the last 24 hours. Click Allow if something was blocked by mistake.') }}</div>
             <div class="l7-scroll">
                 <table class="l7-table" id="wc-log">
                     <thead><tr><th>{{ lang._('Time') }}</th><th>{{ lang._('Device') }}</th><th>{{ lang._('Website or address') }}</th><th>{{ lang._('Rule') }}</th><th>{{ lang._('Action') }}</th></tr></thead>
@@ -91,9 +78,6 @@
         <div id="tab-settings" class="tab-pane fade">
             <div class="l7-card">
                 {{ partial("layout_partials/base_form", ['fields': webForm, 'id': 'frm_web']) }}
-                <div class="l7-hint">
-                    {{ lang._('Website rules block at two levels: the DNS filter answers with "does not exist", and the engine stops connections whose TLS or DNS name matches, so a wildcard still works for names the DNS filter cannot express. For DNS blocking to work, devices must use this firewall as their DNS server.') }}
-                </div>
                 <button class="btn btn-primary" id="wc-save" type="button"><i class="fa fa-save"></i> {{ lang._('Save') }}</button>
             </div>
         </div>

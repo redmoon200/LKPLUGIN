@@ -59,12 +59,14 @@ button, status tiles, and tabs (overview, rules or settings, activity log).
 - **MAC binding**, **GeoIP filtering**, per-interface/VLAN policies, schedules.
 - **Cloud feed server** (`cloud/`): one small server that collects website
   categories, IP threat lists, malware hashes and YARA rules from public sources
-  and serves them to the firewalls.
+  and serves them to the firewalls. Its dashboard (port 8090) shows the feeds, the
+  firewalls that check in and has the **license generator**.
+- **License module**: trial, yearly and lifetime keys; see [docs/LICENSING.md](docs/LICENSING.md).
 - Native OPNsense plugin: MVC GUI, REST API, configd actions, rc.d services.
 
 ## Status
 
-v0.4.0, tested on the lab described in [docs/PROGRESS.md](docs/PROGRESS.md)
+v0.5.0, tested on the lab described in [docs/PROGRESS.md](docs/PROGRESS.md)
 (OPNsense 26.1.11, end-to-end checks, browser tests, fuzzed parsers, CI on
 GitHub). It is a young project: read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 for what it does and does not do (TLS is decrypted only where you ask for it;
@@ -73,14 +75,14 @@ blocking is per address and DNS or TLS name).
 ## Install
 
 ```sh
-pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.4.0/os-layer7security-0.4.0.pkg
+pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.5.0/os-layer7security-0.5.0.pkg
 ```
 
 The package depends on `ndpi`, `sqlite3`, `squid` and `yara`. Then open the
 **Layer 7** menu and follow [docs/USER-GUIDE.md](docs/USER-GUIDE.md). To get the
 category lists, bad-address lists, malware hashes and signatures, install the
 cloud server (`cloud/install.sh`, Debian or Ubuntu) and enter its address under
-Protection > CFS > Settings.
+**Layer 7 > License**, where you also enter a license key or start the 30-day trial.
 
 ## Build and test
 

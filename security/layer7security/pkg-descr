@@ -5,7 +5,7 @@ Control (wildcard website and IP rules), Application Control, content filtering
 (CFS), DPI-SSL, and antivirus for downloads (malware hashes and YARA
 signatures). Devices can be required to sign in. AI services can be controlled,
 inspected and audited. Lists and signatures come from an optional cloud feed
-server.
+server. A license key is required (a 30 day trial is available).
 
 This is an independent open-source project and is not affiliated with any
 commercial Layer 7 product.
@@ -14,6 +14,13 @@ https://github.com/redmoon200/LKPLUGIN
 
 Plugin Changelog
 ================
+
+0.5.0
+
+* add the license module: trial (30 days), standard (1 year) and lifetime keys, signed with the vendor key, optional binding to one firewall, renewal and anti-rollback rules; without a valid license the protection is off and the network keeps working
+* add Layer 7 > License (state, key entry, 30-day trial, installation id, cloud server address and check-in)
+* add the cloud server dashboard (feed builds and sources, firewalls that check in, license generator with revoke, replace and CSV export, activity log)
+* remove explanatory texts and the cloud list tabs from the module pages
 
 0.4.0
 

@@ -10,6 +10,8 @@ namespace OPNsense\Layer7Security;
 
 class DnsController extends \OPNsense\Base\IndexController
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     public function indexAction()
     {
         return $this->response->redirect('/ui/layer7security/cfs');

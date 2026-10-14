@@ -12,7 +12,7 @@ use OPNsense\Layer7Security\PolicyCompiler;
 
 function layer7security_enabled()
 {
-    return (string)(new Layer7Security())->general->enabled === '1';
+    return (string)(new Layer7Security())->general->enabled === '1' && !\OPNsense\Layer7Security\License::locked();
 }
 
 function layer7security_services()
@@ -374,6 +374,8 @@ function layer7security_cron()
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security dns-schedule', '*']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security web-expire', '*']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security feed-update-auto', '17', '*/6']],
+        ['autocron' => ['/usr/local/sbin/configctl -d layer7security license-check', '*/15']],
+        ['autocron' => ['/usr/local/sbin/configctl -d layer7security license-checkin', '27', '*']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security geo-update-auto', '41', '4', '*', '*', '1']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security audit-ingest', '*']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security audit-prune', '23', '3']],

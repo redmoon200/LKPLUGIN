@@ -176,6 +176,20 @@ class Ingest(AuditCase):
         self.assertEqual(self.audit.ingest()['ingested'], 0)
         self.assertTrue(self.audit.verify()['ok'])
 
+    def test_ingest_follows_an_engine_table_that_started_again(self):
+        now = int(time.time())
+        row = (now, 'ai-use', '10.77.0.2', '1.2.3.4', 'claude', 'AI', 'claude.ai', 'AI: Claude', 'monitored tcp/tls')
+        self.engine_db([row] * 5)
+        self.audit.ingest()                                   # initialised at event 5
+        con = sqlite3.connect(os.environ['L7_ENGINE_DB'])
+        con.execute('DELETE FROM events')                     # retention emptied the table: numbers start at 1 again
+        con.executemany('INSERT INTO events(ts,type,client,server,app,category,host,policy,detail) VALUES(?,?,?,?,?,?,?,?,?)', [row] * 2)
+        con.commit()
+        con.close()
+        self.assertEqual(self.audit.ingest()['ingested'], 2)
+        self.assertEqual(self.audit.ingest()['ingested'], 0)
+        self.assertTrue(self.audit.verify()['ok'])
+
 
 class ExportAndRetention(AuditCase):
     def test_exports_are_verifiable_offline(self):

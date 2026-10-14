@@ -15,6 +15,8 @@ use OPNsense\Layer7Security\PolicyCompiler;
 
 class DashboardController extends ApiControllerBase
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     private function period()
     {
         $p = (int)$this->request->get('period', 'int', 3600);

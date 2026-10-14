@@ -33,7 +33,7 @@
         <id>layer7security.av.useCloud</id>
         <label>Get hashes and signatures from the cloud server</label>
         <type>checkbox</type>
-        <help>Uses the cloud server address of Protection > CFS > Settings.</help>
+        <help>Uses the cloud server address of Layer 7 > License.</help>
     </field>
     <field>
         <id>layer7security.av.executableAction</id>

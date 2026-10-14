@@ -359,6 +359,35 @@ def build_curated(out, args, manifest):
             manifest['categories'][cat] = {'domains': len(chosen), 'sources': [{'source': 'curated'}]}
 
 
+def source_errors(manifest):
+    """every source that failed, for the dashboard"""
+    out = []
+
+    def walk(node, where):
+        if isinstance(node, dict):
+            if 'error' in node:
+                out.append({'where': where, 'source': node.get('source', ''), 'error': node['error']})
+            for k, v in node.items():
+                if isinstance(v, (dict, list)):
+                    walk(v, where if k == 'sources' else (where + '/' + k if where else k))
+        elif isinstance(node, list):
+            for v in node:
+                walk(v, where)
+    walk({k: manifest.get(k) for k in ('categories', 'ip', 'hashes', 'yara') if manifest.get(k)}, '')
+    return out[:60]
+
+
+def record_status(root, entry):
+    path = os.path.join(root, 'build_status.json')
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        data = {}
+    hist = [entry] + data.get('history', [])
+    write_atomic(path, json.dumps({'history': hist[:30]}))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--out', default='/var/lib/l7cloud/feeds')
@@ -371,6 +400,35 @@ def main():
     ap.add_argument('--only', default='', help='comma list of parts: domains,ips,hashes,yara,geoip (default all)')
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
+    state_dir = os.path.dirname(os.path.abspath(args.out.rstrip('/')))
+    lock = os.path.join(state_dir, 'build.lock')
+    try:
+        with open(lock) as f:
+            os.kill(int(f.read().strip() or 0), 0)
+        print('another build is running', file=sys.stderr)
+        return 3
+    except (OSError, ValueError):
+        pass
+    with open(lock, 'w') as f:
+        f.write(str(os.getpid()))
+    started = time.time()
+    try:
+        rc = build(args)
+    except Exception as exc:
+        record_status(state_dir, {'ts': int(started), 'seconds': int(time.time() - started), 'ok': False,
+                                  'errors': [{'where': 'build', 'source': '', 'error': str(exc)[:200]}], 'counts': {}})
+        raise
+    finally:
+        try:
+            os.unlink(lock)
+        except OSError:
+            pass
+    return rc
+
+
+def build(args):
+    started = time.time()
+    state_dir = os.path.dirname(os.path.abspath(args.out.rstrip('/')))
     only = {x for x in args.only.split(',') if x} or {'domains', 'ips', 'hashes', 'yara', 'geoip'}
     old = {}
     try:
@@ -407,10 +465,14 @@ def main():
     elif 'geoip' in old:
         manifest['geoip'] = old['geoip']
     write_atomic(os.path.join(args.out, 'manifest.json'), json.dumps(manifest, indent=1))
-    print(json.dumps({'categories': {k: v['domains'] for k, v in manifest['categories'].items()},
-                      'ip': {k: v['entries'] for k, v in manifest['ip'].items()},
-                      'hashes': manifest['hashes'].get('counts'),
-                      'yara': {k: manifest['yara'].get(k) for k in ('files', 'rules')}}))
+    counts = {'categories': {k: v['domains'] for k, v in manifest['categories'].items()},
+              'ip': {k: v['entries'] for k, v in manifest['ip'].items()},
+              'hashes': manifest['hashes'].get('counts'),
+              'yara': {k: manifest['yara'].get(k) for k in ('files', 'rules')}}
+    errors = source_errors(manifest)
+    record_status(state_dir, {'ts': int(started), 'seconds': int(time.time() - started), 'ok': bool(manifest['categories']),
+                              'parts': sorted(only), 'errors': errors, 'counts': counts})
+    print(json.dumps(counts))
     return 0 if manifest['categories'] else 1
 
 

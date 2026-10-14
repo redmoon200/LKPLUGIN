@@ -165,9 +165,15 @@ def main():
         page.click('#cfs-test-go')
         page.wait_for_timeout(2500)
         failed += check(page.locator('#cfs-test-out').inner_text().strip() != '', 'the category test answers')
-        page.click('a[href="#tab-cloud"]')
-        page.wait_for_timeout(800)
-        shot('ui_cfs_cloud.png')
+        failed += check(page.locator('a[href="#tab-cloud"]').count() == 0, 'the CFS page has no cloud lists tab any more')
+
+        # ---- License page: state, installation id, cloud server connection
+        open_page('license')
+        page.wait_for_timeout(1500)
+        failed += check(page.locator('#lic-tiles .l7-tile').count() >= 4, 'the license page shows its state tiles')
+        failed += check(len(page.locator('#lic-install').inner_text().strip()) == 19, 'the license page shows the installation id')
+        failed += check(page.locator('#lic-cloud .l7-tile').count() == 3, 'the license page shows the cloud server connection')
+        shot('ui_license.png')
 
         # ---- Antivirus: scan the EICAR test file through the GUI
         open_page('antivirus')
@@ -189,7 +195,7 @@ def main():
 
         # ---- the other module pages render their header and tiles
         for path, title in (('dpissl', 'DPI-SSL'), ('access', 'Users and Access'), ('ai', 'AI Service'), ('inspection', 'AI Inspection'), ('audit', 'AI Audit'),
-                            ('dashboard', 'Layer 7 Overview'), ('settings', 'Layer 7 Settings'), ('geoip', 'GeoIP'), ('macbinding', 'MAC Binding')):
+                            ('dashboard', 'Layer 7 Overview'), ('settings', 'Layer 7 Settings'), ('license', 'License'), ('geoip', 'GeoIP'), ('macbinding', 'MAC Binding')):
             open_page(path)
             head = page.locator('.l7-head-text h1').inner_text()
             failed += check(head == title, 'page %s has the header "%s"' % (path, head))

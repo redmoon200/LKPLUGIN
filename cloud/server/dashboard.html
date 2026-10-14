@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L7 Cloud</title>
+<style>
+:root {
+  --bg: #f3f4f6; --card: #ffffff; --text: #1f2933; --muted: #6b7785; --line: #d9dde2; --soft: #eef0f3;
+  --accent: #d94f00; --ok: #2e9e57; --warn: #c78a00; --bad: #d03b3b; --info: #2b7bd6;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14181d; --card: #1d232a; --text: #e4e7eb; --muted: #94a0ad; --line: #2c353f; --soft: #252d36; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--accent); }
+header { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+.bar { max-width: 1280px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.brand { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.brand i { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: inline-block; }
+nav { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
+nav a { text-decoration: none; color: var(--muted); padding: 6px 12px; border-radius: 8px; font-weight: 600; }
+nav a.on { background: var(--soft); color: var(--text); }
+main { max-width: 1280px; margin: 0 auto; padding: 18px 16px 60px; }
+h1 { font-size: 21px; margin: 0 0 4px; } .sub { color: var(--muted); margin: 0 0 16px; }
+h2 { font-size: 15px; margin: 0 0 10px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tile { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.tile .v { font-size: 24px; font-weight: 650; line-height: 1.2; overflow-wrap: anywhere; }
+.tile .l { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-top: 3px; }
+.tile .s { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.tile.ok .v { color: var(--ok); } .tile.warn .v { color: var(--warn); } .tile.bad .v { color: var(--bad); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tr:hover td { background: var(--soft); }
+.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mono { font-family: Menlo, Consolas, monospace; font-size: 12px; }
+.scroll { overflow-x: auto; }
+.pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); background: var(--soft); }
+.pill.ok { color: var(--ok); border-color: var(--ok); } .pill.warn { color: var(--warn); border-color: var(--warn); }
+.pill.bad { color: var(--bad); border-color: var(--bad); } .pill.info { color: var(--info); border-color: var(--info); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+.dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); } .dot.warn { background: var(--warn); }
+button, .btn { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.danger { color: var(--bad); border-color: var(--bad); }
+button:disabled { opacity: .5; cursor: default; }
+button.small { padding: 2px 8px; font-size: 12px; }
+input, select, textarea { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); width: 100%; }
+label { display: block; font-size: 12px; font-weight: 600; margin: 10px 0 4px; color: var(--muted); }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.key { font-family: Menlo, Consolas, monospace; font-size: 13px; word-break: break-all; background: var(--soft); border: 1px dashed var(--line); border-radius: 8px; padding: 10px; user-select: all; }
+pre { background: var(--soft); border-radius: 8px; padding: 10px; overflow: auto; max-height: 320px; font-size: 12px; margin: 0; }
+.muted { color: var(--muted); }
+.hint { border-left: 3px solid var(--info); background: var(--soft); padding: 8px 12px; border-radius: 0 8px 8px 0; margin-bottom: 12px; }
+.hint.bad { border-left-color: var(--bad); } .hint.warn { border-left-color: var(--warn); }
+#toast { position: fixed; right: 18px; bottom: 18px; z-index: 50; display: flex; flex-direction: column; gap: 8px; }
+#toast div { background: var(--ok); color: #fff; padding: 9px 14px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.3); max-width: 380px; }
+#toast div.bad { background: var(--bad); }
+#login { max-width: 360px; margin: 12vh auto; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+.modal.on { display: flex; }
+.modal .box { background: var(--card); border-radius: 12px; padding: 18px; max-width: 640px; width: 100%; max-height: 85vh; overflow: auto; }
+@media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } .tile .v { font-size: 20px; } }
+</style>
+</head>
+<body>
+<div id="login" class="card" style="display:none">
+  <h1>L7 Cloud</h1>
+  <p class="sub">Sign in to the dashboard.</p>
+  <form id="loginform">
+    <label for="pw">Password</label>
+    <input id="pw" type="password" autocomplete="current-password" autofocus>
+    <div style="margin-top:14px"><button class="primary" type="submit" style="width:100%">Sign in</button></div>
+    <p id="loginerr" class="muted" style="color:var(--bad)"></p>
+  </form>
+</div>
+
+<div id="app" style="display:none">
+<header><div class="bar">
+  <div class="brand"><i></i>L7 Cloud</div>
+  <nav id="nav">
+    <a href="#overview">Overview</a><a href="#feeds">Feeds</a><a href="#firewalls">Firewalls</a>
+    <a href="#licenses">Licenses</a><a href="#activity">Activity</a><a href="#settings">Settings</a>
+  </nav>
+  <button id="logout" class="small">Sign out</button>
+</div></header>
+<main id="view"></main>
+</div>
+<div id="toast"></div>
+<div class="modal" id="modal"><div class="box" id="modalbox"></div></div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var view = $('#view'), timer = null, state = {};
+
+  function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); }
+  function bytes(n) { n = Number(n) || 0; var u = ['B', 'KB', 'MB', 'GB'], i = 0; while (n >= 1024 && i < 3) { n /= 1024; i++; } return (i ? n.toFixed(n < 10 ? 2 : 1) : n) + ' ' + u[i]; }
+  function num(n) { return Number(n || 0).toLocaleString(); }
+  function ago(ts) { if (!ts) { return 'never'; } var d = Math.floor(Date.now() / 1000) - ts; if (d < 5) { return 'just now'; } if (d < 60) { return d + ' s ago'; } if (d < 3600) { return Math.floor(d / 60) + ' min ago'; } if (d < 86400) { return Math.floor(d / 3600) + ' h ago'; } return Math.floor(d / 86400) + ' d ago'; }
+  function when(ts) { return ts ? new Date(ts * 1000).toLocaleString() : ''; }
+  function day(ts) { return ts ? new Date(ts * 1000).toISOString().slice(0, 10) : 'never'; }
+  function pill(t, k) { return '<span class="pill ' + (k || '') + '">' + esc(t) + '</span>'; }
+  function tile(v, l, s, k) { return '<div class="tile ' + (k || '') + '"><div class="v">' + esc(v) + '</div><div class="l">' + esc(l) + '</div>' + (s ? '<div class="s">' + esc(s) + '</div>' : '') + '</div>'; }
+  function toast(t, bad) { var d = document.createElement('div'); d.textContent = t; if (bad) { d.className = 'bad'; } $('#toast').appendChild(d); setTimeout(function () { d.remove(); }, bad ? 7000 : 3500); }
+
+  function api(method, path, body) {
+    var o = {method: method, headers: {'X-Requested-With': 'l7dash', 'Content-Type': 'application/json'}, credentials: 'same-origin'};
+    if (body !== undefined) { o.body = JSON.stringify(body); }
+    return fetch(path, o).then(function (r) {
+      if (r.status === 401 && path !== '/api/login') { showLogin(); throw new Error('sign in'); }
+      return r.json().then(function (j) { if (!r.ok) { throw new Error(j.error || ('error ' + r.status)); } return j; });
+    });
+  }
+  function fail(e) { if (e.message !== 'sign in') { toast(e.message, true); } }
+
+  function copy(text) {
+    if (navigator.clipboard) { navigator.clipboard.writeText(text).then(function () { toast('Copied'); }, function () { toast('Select the text and copy it', true); }); }
+    else { toast('Select the text and copy it', true); }
+  }
+
+  /* ---------- login ---------- */
+  function showLogin() { $('#app').style.display = 'none'; $('#login').style.display = 'block'; stopTimer(); }
+  $('#loginform').addEventListener('submit', function (e) {
+    e.preventDefault();
+    api('POST', '/api/login', {password: $('#pw').value}).then(function () { $('#pw').value = ''; $('#loginerr').textContent = ''; start(); },
+      function (err) { $('#loginerr').textContent = err.message; });
+  });
+  $('#logout').addEventListener('click', function () { api('POST', '/api/logout', {}).then(showLogin, showLogin); });
+
+  function start() {
+    $('#login').style.display = 'none'; $('#app').style.display = 'block';
+    route();
+  }
+  function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
+  function every(fn, ms) { stopTimer(); timer = setInterval(fn, ms); }
+
+  /* ---------- pages ---------- */
+  var pages = {};
+  function route() {
+    var name = (location.hash || '#overview').slice(1);
+    if (!pages[name]) { name = 'overview'; }
+    document.querySelectorAll('#nav a').forEach(function (a) { a.className = a.getAttribute('href') === '#' + name ? 'on' : ''; });
+    stopTimer();
+    pages[name]();
+  }
+  window.addEventListener('hashchange', function () { if ($('#app').style.display !== 'none') { route(); } });
+
+  function head(t, s) { return '<h1>' + esc(t) + '</h1><p class="sub">' + esc(s) + '</p>'; }
+
+  pages.overview = function () {
+    function load() {
+      api('GET', '/api/overview').then(function (d) {
+        var b = d.build || {}, lic = d.licenses, fw = d.firewalls, rq = d.requests24h;
+        var age = b.ts ? d.now - b.ts : null;
+        var buildKind = !b.ts ? 'warn' : (!b.ok ? 'bad' : (age > 4 * 3600 ? 'warn' : 'ok'));
+        var errs = (b.errors || []).length;
+        var html = head('Overview', 'Is the feed server healthy, are the firewalls reporting, which licenses are running.');
+        html += '<div class="row"><button class="primary" id="bnow"' + (d.running ? ' disabled' : '') + '>' + (d.running ? 'Build running...' : 'Build everything now') + '</button></div>';
+        html += '<div class="tiles">' +
+          tile(d.running ? 'Running' : (b.ts ? (b.ok ? 'OK' : 'Failed') : 'None yet'), 'Last build', b.ts ? ago(b.ts) + (b.seconds ? ', took ' + b.seconds + ' s' : '') : '', d.running ? 'warn' : buildKind) +
+          tile(errs, 'Source problems', errs ? 'see Feeds' : 'all sources reachable', errs ? 'warn' : 'ok') +
+          tile(num(d.files), 'Published files', bytes(d.feedBytes)) +
+          tile(num(fw.seen24h) + ' / ' + num(fw.total), 'Firewalls seen 24 h / known', '', fw.total && !fw.seen24h ? 'warn' : '') +
+          tile(num(lic.active), 'Active licenses', lic.expiring ? lic.expiring + ' expire within 14 days' : '', lic.expiring ? 'warn' : 'ok') +
+          tile(num(lic.revoked) + ' / ' + num(lic.expired), 'Revoked / expired') +
+          tile(num(rq.count), 'Requests 24 h', bytes(rq.bytes) + ' sent, ' + rq.errors + ' errors', rq.errors ? 'warn' : '') +
+          tile(d.disk && d.disk.total ? bytes(d.disk.free) : '-', 'Disk free', d.disk && d.disk.total ? 'of ' + bytes(d.disk.total) : '') + '</div>';
+        html += '<div class="card"><h2>Recent builds</h2><div class="scroll" id="hist"></div></div>';
+        view.innerHTML = html;
+        $('#bnow').onclick = function () { api('POST', '/api/build', {}).then(function () { toast('Build started'); load(); }, fail); };
+        api('GET', '/api/feeds').then(function (f) {
+          $('#hist').innerHTML = '<table><thead><tr><th>Time</th><th>Result</th><th class="num">Took</th><th>Parts</th><th>Problems</th></tr></thead><tbody>' +
+            ((f.history || []).slice(0, 12).map(function (h) {
+              return '<tr><td title="' + esc(when(h.ts)) + '">' + esc(ago(h.ts)) + '</td><td>' + (h.ok ? pill('ok', 'ok') : pill('failed', 'bad')) + '</td><td class="num">' + h.seconds + ' s</td><td>' + esc((h.parts || []).join(', ')) + '</td><td>' + ((h.errors || []).length ? pill((h.errors || []).length + ' sources', 'warn') : '') + '</td></tr>';
+            }).join('') || '<tr><td colspan="5" class="muted">No build recorded yet.</td></tr>') + '</tbody></table>';
+        }, fail);
+      }, fail);
+    }
+    load(); every(load, 10000);
+  };
+
+  pages.feeds = function () {
+    var logTimer = null;
+    function sourceRows(m) {
+      var rows = [];
+      function add(group, name, node) {
+        (node.sources || []).forEach(function (s) {
+          rows.push('<tr><td>' + esc(group) + '</td><td>' + esc(name) + '</td><td>' + esc(s.source || '') + '</td><td class="num">' + num(s.domains || s.entries || s.hashes || s.files || 0) + '</td><td>' + esc(s.licence || '') + '</td><td>' + (s.error ? pill(s.error.slice(0, 60), 'bad') : (s.note ? pill(s.note, 'warn') : pill('ok', 'ok'))) + '</td></tr>');
+        });
+      }
+      Object.keys(m.categories || {}).forEach(function (k) { add('Website category', k, m.categories[k]); });
+      Object.keys(m.ip || {}).forEach(function (k) { add('IP list', k, m.ip[k]); });
+      if (m.hashes && m.hashes.sources) { add('Malware hashes', 'all', m.hashes); }
+      if (m.yara && m.yara.sources) { add('Signatures', 'YARA', m.yara); }
+      return rows.join('');
+    }
+    function load() {
+      api('GET', '/api/feeds').then(function (f) {
+        var now = Math.floor(Date.now() / 1000), html = head('Feeds', 'What the server publishes, how fresh it is and where the data comes from.');
+        html += '<div class="card"><div class="row"><strong>Rebuild:</strong>' +
+          [['', 'Everything'], ['domains', 'Website categories'], ['ips', 'IP lists'], ['hashes', 'Hashes'], ['yara', 'Signatures'], ['geoip', 'GeoIP']].map(function (p) {
+            return '<button class="small bpart" data-p="' + p[0] + '"' + (f.running ? ' disabled' : '') + '>' + p[1] + '</button>';
+          }).join('') + (f.running ? pill('build running', 'warn') : '') + '</div><pre id="blog" style="display:none"></pre></div>';
+        html += '<div class="card"><h2>Published files</h2><div class="scroll"><table><thead><tr><th>File</th><th class="num">Entries</th><th class="num">Size</th><th>Updated</th><th></th></tr></thead><tbody>' +
+          f.files.map(function (x) {
+            var age = now - x.mtime, k = age > 6 * 3600 ? 'bad' : (age > 3 * 3600 ? 'warn' : 'ok');
+            return '<tr><td class="mono">' + esc(x.path) + '</td><td class="num">' + (x.entries ? num(x.entries) : '') + '</td><td class="num">' + bytes(x.size) + '</td><td title="' + esc(when(x.mtime)) + '">' + esc(ago(x.mtime)) + '</td><td>' + (x.path.indexOf('yara/') === 0 || x.path === 'manifest.json' ? '' : '<span class="dot ' + k + '"></span>') + '</td></tr>';
+          }).join('') + '</tbody></table></div></div>';
+        html += '<div class="card"><h2>Sources</h2><div class="scroll"><table><thead><tr><th>Kind</th><th>Name</th><th>Source</th><th class="num">Entries</th><th>Licence</th><th>Last result</th></tr></thead><tbody>' + sourceRows(f.manifest || {}) + '</tbody></table></div></div>';
+        view.innerHTML = html;
+        document.querySelectorAll('.bpart').forEach(function (b) { b.onclick = function () { api('POST', '/api/build', {only: b.getAttribute('data-p')}).then(function () { toast('Build started'); load(); showLog(); }, fail); }; });
+        if (f.running) { showLog(); }
+      }, fail);
+    }
+    function showLog() {
+      var box = $('#blog'); if (!box) { return; }
+      box.style.display = 'block';
+      if (logTimer) { clearInterval(logTimer); }
+      function pull() { api('GET', '/api/build/log').then(function (d) { box.textContent = d.lines.join('\n') || 'Waiting for output...'; box.scrollTop = box.scrollHeight; if (!d.running) { clearInterval(logTimer); logTimer = null; load(); } }, fail); }
+      pull(); logTimer = setInterval(pull, 3000);
+    }
+    load(); every(function () { if (!logTimer) { load(); } }, 30000);
+  };
+
+  pages.firewalls = function () {
+    function load() {
+      api('GET', '/api/firewalls').then(function (d) {
+        state.fw = d.rows;
+        var html = head('Firewalls', 'Every firewall that has reported in with its installation id, version and license.');
+        html += '<div class="card"><div class="scroll"><table><thead><tr><th></th><th>Name</th><th>Installation id</th><th>Version</th><th>Address</th><th>License</th><th>Last check-in</th><th class="num">Check-ins</th></tr></thead><tbody>' +
+          (d.rows.map(function (r, i) {
+            var l = r.license, ls = l ? pill(l.type + ' ' + l.state + (l.expires ? ', ' + day(l.expires) : ''), l.state === 'active' ? 'ok' : 'bad') : pill(r.lic_state || 'none', r.lic_state === 'none' ? 'warn' : 'bad');
+            return '<tr><td><span class="dot ' + (r.online ? 'ok' : 'bad') + '" title="' + (r.online ? 'checked in recently' : 'silent for a while') + '"></span></td><td><a href="#firewalls" class="fwd" data-i="' + i + '">' + esc(r.hostname || '(no name)') + '</a></td><td class="mono">' + esc(r.install_id) + '</td><td>' + esc(r.version) + '</td><td class="mono">' + esc(r.last_ip) + '</td><td>' + ls + '</td><td title="' + esc(when(r.last_seen)) + '">' + esc(ago(r.last_seen)) + '</td><td class="num">' + num(r.checkins) + '</td></tr>';
+          }).join('') || '<tr><td colspan="8" class="muted">No firewall has reported in yet. Enter this server\'s address in the plugin (Layer 7 > License).</td></tr>') + '</tbody></table></div></div>';
+        view.innerHTML = html;
+        document.querySelectorAll('.fwd').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); detail(state.fw[a.getAttribute('data-i')]); }; });
+      }, fail);
+    }
+    function detail(r) {
+      var kv = [['Name', r.hostname], ['Installation id', r.install_id], ['Plugin version', r.version], ['System', r.os], ['Address', r.last_ip], ['First seen', when(r.first_seen)], ['Last check-in', when(r.last_seen)], ['Check-ins', r.checkins],
+                ['License key id', r.key_id || 'none'], ['License state', r.lic_state]];
+      var info = r.info || {};
+      Object.keys(info).forEach(function (k) { kv.push([k, typeof info[k] === 'object' ? JSON.stringify(info[k]) : info[k]]); });
+      $('#modalbox').innerHTML = '<h2>' + esc(r.hostname || r.install_id) + '</h2><table>' + kv.map(function (p) { return '<tr><th>' + esc(p[0]) + '</th><td class="mono">' + esc(p[1]) + '</td></tr>'; }).join('') + '</table><div class="row" style="margin-top:14px"><button id="mclose">Close</button></div>';
+      $('#modal').classList.add('on'); $('#mclose').onclick = function () { $('#modal').classList.remove('on'); };
+    }
+    load(); every(load, 15000);
+  };
+
+  pages.licenses = function () {
+    var filter = '';
+    function keyBox(l, title) {
+      return '<div class="card" id="newkey"><h2>' + esc(title) + '</h2><p class="muted">' + esc(l.label) + (l.bound ? ', tied to one firewall' : ', works on any firewall') + (l.expires ? ', expires ' + day(l.expires) : ', never expires') + '</p><div class="key" id="keytxt">' + esc(l.key) + '</div><div class="row" style="margin-top:10px"><button class="primary" id="kcopy">Copy the key</button></div></div>';
+    }
+    function load(shown) {
+      api('GET', '/api/licenses').then(function (d) {
+        var html = head('Licenses', 'Issue keys for the plugin, withdraw them, or send a replacement that the firewall picks up by itself.');
+        html += '<div id="shown">' + (shown || '') + '</div>';
+        html += '<div class="card"><h2>Generate a license</h2><div class="form">' +
+          '<div><label>Customer</label><input id="g_cust" maxlength="80" placeholder="Acme Ltd"></div>' +
+          '<div><label>Type</label><select id="g_type"><option value="trial">Trial (30 days)</option><option value="year" selected>Standard (1 year)</option><option value="lifetime">Lifetime</option></select></div>' +
+          '<div><label>Installation id (optional, ties the key to one firewall)</label><input id="g_inst" class="mono" maxlength="19" placeholder="1234-ABCD-5678-EF01"></div>' +
+          '<div><label>Note (optional)</label><input id="g_note" maxlength="200" placeholder="order number"></div>' +
+          '<div><label>Issue date (optional, for backdating tests)</label><input id="g_date" maxlength="10" placeholder="2026-10-14"></div></div>' +
+          '<div class="row" style="margin-top:14px"><button class="primary" id="g_go">Generate</button></div></div>';
+        html += '<div class="card"><div class="row"><h2 style="margin:0;flex:1">Issued licenses</h2><select id="f_state" style="width:auto"><option value="">All</option><option value="active">Active</option><option value="expired">Expired</option><option value="revoked">Revoked</option></select><a class="btn" href="/api/licenses.csv" style="text-decoration:none">Export CSV</a></div>' +
+          '<div class="scroll"><table><thead><tr><th>Customer</th><th>Type</th><th>State</th><th>Issued</th><th>Expires</th><th>Tied to</th><th>Used by</th><th>Key id</th><th></th></tr></thead><tbody>' +
+          (d.rows.filter(function (r) { return !filter || r.state === filter; }).map(function (r, i) {
+            var used = (r.used_by || []).map(function (u) { return esc(u.hostname || u.install_id) + ' (' + esc(ago(u.last_seen)) + ')'; }).join('<br>');
+            return '<tr><td>' + esc(r.customer) + (r.note ? '<br><span class="muted">' + esc(r.note) + '</span>' : '') + '</td><td>' + esc(r.type) + '</td><td>' + pill(r.state, r.state === 'active' ? 'ok' : 'bad') + (r.replacement_key ? '<br>' + pill('replacement sent', 'info') : '') + '</td><td>' + esc(day(r.issued)) + '</td><td>' + (r.expires ? esc(day(r.expires)) + (r.days_left !== null && r.state === 'active' ? '<br><span class="muted">' + r.days_left + ' d left</span>' : '') : 'never') + '</td><td class="mono">' + esc(r.bound_install || 'any') + '</td><td>' + (used || '<span class="muted">-</span>') + '</td><td class="mono">' + esc(r.key_id) + '</td><td style="white-space:nowrap"><button class="small kc" data-k="' + esc(r.key) + '">Copy</button> <button class="small rep" data-id="' + esc(r.key_id) + '" data-bound="' + esc(r.bound_install) + '">Replace</button> ' + (r.revoked ? '<button class="small rev" data-id="' + esc(r.key_id) + '" data-v="0">Reinstate</button>' : '<button class="small danger rev" data-id="' + esc(r.key_id) + '" data-v="1">Revoke</button>') + '</td></tr>';
+          }).join('') || '<tr><td colspan="9" class="muted">No license issued yet.</td></tr>') + '</tbody></table></div></div>';
+        view.innerHTML = html;
+        $('#f_state').value = filter;
+        $('#f_state').onchange = function () { filter = this.value; load(); };
+        $('#g_go').onclick = function () {
+          api('POST', '/api/licenses/issue', {customer: $('#g_cust').value, type: $('#g_type').value, install_id: $('#g_inst').value, note: $('#g_note').value, issued: $('#g_date').value}).then(function (r) {
+            toast('License created'); load(keyBox(r.license, 'New license for ' + $('#g_cust').value)); setTimeout(function () { var b = $('#kcopy'); if (b) { b.onclick = function () { copy(r.license.key); }; } window.scrollTo(0, 0); }, 50);
+          }, fail);
+        };
+        document.querySelectorAll('.kc').forEach(function (b) { b.onclick = function () { copy(b.getAttribute('data-k')); }; });
+        document.querySelectorAll('.rev').forEach(function (b) { b.onclick = function () {
+          var revoke = b.getAttribute('data-v') === '1';
+          if (revoke && !confirm('Withdraw this license? The firewall locks at its next check-in.')) { return; }
+          api('POST', '/api/licenses/revoke', {key_id: b.getAttribute('data-id'), revoked: revoke}).then(function () { toast(revoke ? 'Revoked' : 'Reinstated'); load(); }, fail); }; });
+        document.querySelectorAll('.rep').forEach(function (b) { b.onclick = function () {
+          var t = prompt('Type of the replacement key (trial, year or lifetime):', 'year'); if (!t) { return; }
+          api('POST', '/api/licenses/replace', {key_id: b.getAttribute('data-id'), type: t, install_id: b.getAttribute('data-bound')}).then(function (r) {
+            toast('Replacement issued: the firewall installs it at its next check-in'); load(keyBox(r.license, 'Replacement key')); setTimeout(function () { var k = $('#kcopy'); if (k) { k.onclick = function () { copy(r.license.key); }; } }, 50); }, fail); }; });
+      }, fail);
+    }
+    load();
+  };
+
+  pages.activity = function () {
+    var kind = '';
+    function load() {
+      api('GET', '/api/activity?limit=200&kind=' + kind).then(function (d) {
+        var html = head('Activity', 'The latest requests: feed downloads by the firewalls, check-ins and trial requests.');
+        html += '<div class="row">' + [['', 'All'], ['feeds', 'Feed downloads'], ['api', 'Check-ins and trials'], ['errors', 'Errors']].map(function (k) { return '<button class="small' + (kind === k[0] ? ' primary' : '') + ' k" data-k="' + k[0] + '">' + k[1] + '</button>'; }).join('') + '</div>';
+        html += '<div class="card"><div class="scroll"><table><thead><tr><th>Time</th><th>Address</th><th>Request</th><th>Result</th><th class="num">Bytes</th></tr></thead><tbody>' +
+          (d.rows.map(function (r) { return '<tr><td title="' + esc(when(r.ts)) + '">' + esc(ago(r.ts)) + '</td><td class="mono">' + esc(r.ip) + '</td><td class="mono">' + esc(r.method + ' ' + r.path) + '</td><td>' + pill(r.status, r.status < 300 ? 'ok' : (r.status === 304 ? 'info' : 'bad')) + '</td><td class="num">' + num(r.bytes) + '</td></tr>'; }).join('') || '<tr><td colspan="5" class="muted">Nothing yet.</td></tr>') + '</tbody></table></div></div>';
+        view.innerHTML = html;
+        document.querySelectorAll('.k').forEach(function (b) { b.onclick = function () { kind = b.getAttribute('data-k'); load(); }; });
+      }, fail);
+    }
+    load(); every(load, 10000);
+  };
+
+  pages.settings = function () {
+    Promise.all([api('GET', '/api/settings'), api('GET', '/api/pubkey')]).then(function (r) {
+      var s = r[0], k = r[1];
+      var html = head('Settings', 'Trial keys, the public key of the plugin and the dashboard password.');
+      html += '<div class="grid2"><div class="card"><h2>Trial keys</h2><label style="display:flex;gap:8px;align-items:center;margin:0 0 10px;color:var(--text)"><input type="checkbox" id="s_trial" style="width:auto"' + (s.trials_enabled ? ' checked' : '') + '> Firewalls may request a 30 day trial key themselves (once per firewall)</label><button id="s_save" class="primary">Save</button></div>' +
+        '<div class="card"><h2>Dashboard password</h2><label>Current password</label><input type="password" id="p_old" autocomplete="current-password"><label>New password (10+ characters)</label><input type="password" id="p_new" autocomplete="new-password"><div style="margin-top:12px"><button id="p_go">Change password</button></div></div></div>';
+      html += '<div class="card"><h2>Vendor public key</h2><p class="muted">The plugin trusts exactly this key. Keys signed here only work in plugins that embed it. The private key never leaves this server (/var/lib/l7cloud/license/signing.pem): back it up offline; if it is lost, issued keys can no longer be renewed with the same trust.</p><label>Base64 (embedded in License.php)</label><div class="key">' + esc(k.b64) + '</div><label>PEM</label><pre>' + esc(k.pem) + '</pre><div class="row" style="margin-top:10px"><button id="k_copy">Copy base64</button></div></div>';
+      view.innerHTML = html;
+      $('#s_save').onclick = function () { api('POST', '/api/settings', {trials_enabled: $('#s_trial').checked}).then(function () { toast('Saved'); }, fail); };
+      $('#p_go').onclick = function () { api('POST', '/api/password', {old: $('#p_old').value, new: $('#p_new').value}).then(function () { toast('Changed. Sign in again.'); showLogin(); }, fail); };
+      $('#k_copy').onclick = function () { copy(k.b64); };
+    }, fail);
+  };
+
+  /* ---------- start ---------- */
+  api('GET', '/api/me').then(function (m) { if (m.auth) { start(); } else { showLogin(); } }, showLogin);
+}());
+</script>
+</body>
+</html>

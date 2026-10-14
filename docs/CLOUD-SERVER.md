@@ -15,11 +15,22 @@ It creates the user `l7cloud`, installs `yara` (only used to test that every
 signature file compiles), copies the scripts to `/opt/l7cloud`, builds the first
 set of lists into `/var/lib/l7cloud/feeds` and starts
 
-- `l7cloud-feed.service`: the HTTP server on port 8080 (read only, whitelisted names),
+- `l7cloud-feed.service`: the HTTP server on port 8080 (feeds, check-in, trial; whitelisted names),
+- `l7cloud-dashboard.service`: the admin dashboard on port 8090 (login),
 - `l7cloud-build.timer`: rebuilds everything every hour.
 
-Then enter `http://<server>:8080/feeds` on the firewall under
-**Protection > CFS > Settings > Cloud server address**.
+The first run also creates the license signing key and prints the dashboard
+password once. Then enter `http://<server>:8080/feeds` on the firewall under
+**Layer 7 > License**.
+
+## Dashboard and license generator
+
+`http://<server>:8090/`: overview, feeds (files, sources, rebuild buttons with the
+build log), firewalls that checked in, **license generator** (trial, yearly,
+lifetime, optional tie to an installation id), activity and settings. Details,
+security notes and the key format: [LICENSING.md](LICENSING.md). State lives in
+`/var/lib/l7cloud/state.db` (SQLite), the build result in
+`/var/lib/l7cloud/build_status.json`. Back up `/var/lib/l7cloud/license/signing.pem`.
 
 ## What it serves
 
@@ -31,6 +42,8 @@ Then enter `http://<server>:8080/feeds` on the firewall under
 | `/feeds/yara/index.json`, `/feeds/yara/<file>.yar` | signature files with SHA-256 checksums | Antivirus signatures |
 | `/feeds/manifest.json` | what was built, how many entries, sources and licences | status pages |
 | `/feeds/ip2country-v4.tsv.gz`, `-v6` | country database mirror | GeoIP |
+| `POST /api/v1/checkin` | a firewall reports in and learns its license state | License module |
+| `POST /api/v1/trial` | a 30 day trial key for an installation id (once) | License module |
 | `/health` | liveness | monitoring |
 
 ETag and gzip are supported. Private and special addresses are never published

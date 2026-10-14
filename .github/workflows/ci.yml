@@ -38,7 +38,9 @@ jobs:
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/signatures.py \
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/cloudlib.py \
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/cfs.py \
-            cloud/server/build_feeds.py cloud/server/feedserver.py
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/license_cloud.py \
+            cloud/server/build_feeds.py cloud/server/feedserver.py cloud/server/dashboard.py cloud/server/cloudcore.py \
+            cloud/server/store.py cloud/server/licenselib.py
 
       - name: XML well-formed
         run: find security -name '*.xml' -print0 | xargs -0 -n1 xmllint --noout
@@ -81,8 +83,8 @@ jobs:
           print('ok')
           EOF
 
-      - name: Unit tests (detectors, audit log, ICAP scanner, antivirus, live sessions, sign-in, cloud feeds)
-        run: python3 -m unittest tests/test_dlp.py tests/test_audit.py tests/test_icap.py tests/test_av.py tests/test_live.py tests/test_auth.py tests/test_cloud.py
+      - name: Unit tests (detectors, audit log, ICAP scanner, antivirus, live sessions, sign-in, cloud feeds, license keys)
+        run: python3 -m unittest tests/test_dlp.py tests/test_audit.py tests/test_icap.py tests/test_av.py tests/test_live.py tests/test_auth.py tests/test_cloud.py tests/test_license.py
 
       - name: No secrets in tree
         run: |

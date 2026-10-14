@@ -13,6 +13,8 @@ use OPNsense\Core\Backend;
 
 class FlowsController extends ApiControllerBase
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     /** bootgrid compatible search over stored flows */
     public function searchAction()
     {

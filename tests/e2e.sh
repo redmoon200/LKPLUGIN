@@ -11,8 +11,8 @@ FAIL=0
 ok()   { PASS=$((PASS + 1)); echo "  PASS $1"; }
 bad()  { FAIL=$((FAIL + 1)); echo "  FAIL $1"; }
 check() { # description, command...
-	_d="$1"; shift
-	if "$@"; then ok "$_d"; else bad "$_d"; fi
+	_cdesc="$1"; shift
+	if "$@"; then ok "$_cdesc"; else bad "$_cdesc"; fi
 }
 
 jget()  { python -c "import json,sys; d=json.load(sys.stdin); print(eval(sys.argv[1]))" "$1" | tr -d '\015'; }
@@ -33,6 +33,7 @@ blocked() { # the first connection right after a rule change can slip through (d
 	done
 	return 0
 }
+. "$(dirname "$0")/lic_helpers.sh"
 dns_status() { cli "dig +time=3 +tries=1 $1 @10.77.0.1 | grep -o 'status: [A-Z]*' | cut -d' ' -f2"; }
 
 clear_policies() {
@@ -67,6 +68,7 @@ want() { [ -z "$E2E_ONLY" ] || [ "$1" = setup ] || echo " $E2E_ONLY " | grep -q 
 
 if want setup; then
 echo "== setup"
+lic_ensure || { echo "  FAIL could not activate a license on the lab firewall"; exit 1; }
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"enabled":"1","interfaces":"lan","enforce":"1","dnsFilter":"0","dnsCategories":"","dnsBlock":"","dnsAllow":""}}}' >/dev/null
 clear_policies
 clear_web
@@ -505,6 +507,7 @@ api POST /api/layer7security/settings/set '{"layer7security":{"general":{"dnsFil
 fi
 
 . "$(dirname "$0")/e2e_v04_sections.sh"
+. "$(dirname "$0")/e2e_v05_sections.sh"
 
 if want cleanup; then
 echo "== cleanup"
