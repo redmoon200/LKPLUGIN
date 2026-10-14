@@ -14,6 +14,8 @@ use OPNsense\Core\Config;
 
 class SettingsController extends ApiMutableModelControllerBase
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     protected static $internalModelName = 'layer7security';
     protected static $internalModelClass = '\OPNsense\Layer7Security\Layer7Security';
 

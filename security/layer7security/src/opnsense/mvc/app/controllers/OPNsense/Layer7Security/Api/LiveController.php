@@ -18,6 +18,8 @@ use OPNsense\Core\Backend;
  */
 class LiveController extends ApiControllerBase
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     /** open connections: ?limit=200&q=text&dir=out,in,internal */
     public function sessionsAction()
     {

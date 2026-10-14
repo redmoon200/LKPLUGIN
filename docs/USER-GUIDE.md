@@ -14,7 +14,7 @@ The quick actions of Live Sessions apply themselves.
 On the firewall (OPNsense 26.1):
 
 ```sh
-pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.4.0/os-layer7security-0.4.0.pkg
+pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.5.0/os-layer7security-0.5.0.pkg
 ```
 
 It installs `ndpi`, `sqlite3`, `squid` and `yara` from the OPNsense repository.
@@ -22,12 +22,14 @@ Three menus appear: **Layer 7**, **Protection** and **AI**.
 
 ## First steps (10 minutes)
 
+0. **Layer 7 > License**: paste your license key, or enter the cloud server address and
+   click *Start 30-day trial*. Without a license the protection stays off (traffic
+   is not affected).
 1. **Layer 7 > Settings**: tick *Enabled*, choose the LAN or VLAN interfaces to
    watch, *Apply changes*. **Layer 7 > Live Sessions** and the **Overview** fill
    within seconds.
-2. **Protection > CFS > Settings**: enter the address of your cloud server (see
-   below), tick *Enable content filtering*, *Save*, then the **Categories** tab
-   to pick what to block. Devices must use the firewall as their DNS server.
+2. **Protection > CFS > Settings**: tick *Enable content filtering*, *Save*, then the
+   **Categories** tab to pick what to block (the cloud server address is on the License page). Devices must use the firewall as their DNS server.
 3. **Protection > Web Control**: add the websites you never want (`*tiktok.com`).
 4. **Protection > Application Control > Categories**: set VPN, P2P, games ...
    to *Block* or *Watch*.
@@ -97,8 +99,7 @@ encrypted DNS are still caught by the engine when the site name is visible.
 - **Settings**: the *blocked answer*, always-block and never-block websites,
   **safe search** (Google, Bing, DuckDuckGo) and **YouTube restricted mode**,
   **known bad addresses** (botnet servers, compromised hosts, attackers,
-  hijacked networks, Tor) and the **cloud server address**.
-- **Cloud lists**: what is installed and how old it is, *Update everything now*.
+  hijacked networks, Tor).
 - **Test a website** tells the category of a site; **Activity** lists refused
   lookups with an Allow button.
 
@@ -137,9 +138,8 @@ Checks files that are downloaded through the firewall:
 
 *Settings*: choose Allow / Monitor / Block for each, start with Monitor for
 signatures. Plain HTTP is checked automatically; for HTTPS list the download
-sites or use DPI-SSL "all HTTPS". **Malware data** shows how many hashes and
-rules are installed and has *Update from the cloud server now*; **Test a file**
-scans a file you upload and looks up a hash.
+sites or use DPI-SSL "all HTTPS". **Test a file** scans a file you upload and looks up a hash. The lists and
+signatures are refreshed by the cloud connection (License page, *Check in and update now*).
 
 It is a safety net, not a replacement for antivirus on the computers: archives
 are not opened and the signature set is only as good as the public rules behind
@@ -192,8 +192,10 @@ exceptions; update the database once.
 hour it rebuilds from public sources: website categories, IP threat lists,
 malware hashes (MalwareBazaar, ThreatFox, VirusShare) and YARA rules, and serves
 them on port 8080 (`/feeds/manifest.json` lists what is inside and its terms).
-Enter `http://<server>:8080/feeds` under Protection > CFS > Settings. The
-firewall refreshes the data every few hours by itself.
+Enter `http://<server>:8080/feeds` under **Layer 7 > License**. The
+firewall refreshes the data every few hours by itself and reports in once an hour.
+The dashboard on port 8090 shows builds, firewalls and has the license generator
+(see [LICENSING.md](LICENSING.md)).
 
 ## Operating notes
 
@@ -214,5 +216,17 @@ firewall refreshes the data every few hours by itself.
 | DNS filter has no effect | The device uses the firewall for DNS; Unbound running; `/usr/local/etc/unbound.opnsense.d/layer7security.conf` exists |
 | Nobody can browse after turning on sign-in | The login page must be reachable: check Users and Access (status "Sign-in on"), add your own computer to *Never ask these devices* |
 | Certificate warnings | The DPI-SSL certificate is not installed on the device, or the site is pinned: add it to the exclusions |
-| Signatures not working | `pkg info yara`; *Antivirus > Malware data* shows the rule count; run *Update from the cloud server now* |
+| Signatures not working | `pkg info yara`; the Antivirus tiles show the rule count; run *Check in and update now* on the License page |
 | A site stays reachable | Cached name or connection: the first lookup after a change arms the block, open connections are killed on first sight. The very first connection right after a brand-new block rule may occasionally get through; try again before assuming the rule is wrong |
+
+## License
+
+**Layer 7 > License** shows whether the plugin is licensed, the type and end date
+and the installation id of this firewall (needed for a key that is tied to it).
+
+- *Activate key*: paste the key from your vendor. A running license is replaced
+  only by a key that runs longer; a lifetime license is never replaced.
+- *Start 30-day trial*: asks the cloud server for a trial key (once per firewall).
+- *Check in and update now*: reports to the cloud server and downloads the lists.
+- When the license ends or is withdrawn, the protection switches off by itself and
+  this page opens; the network keeps working. A new key switches it on again.

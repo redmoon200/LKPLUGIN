@@ -14,6 +14,8 @@ use OPNsense\Core\Backend;
 /** TLS inspection: CA handling, proxy status and a detector test box */
 class InspectionController extends ApiControllerBase
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     private function user()
     {
         return preg_replace('/[^A-Za-z0-9_.@-]/', '', (string)$this->getUserName()) ?: 'unknown';

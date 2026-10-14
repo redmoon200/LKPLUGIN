@@ -14,7 +14,6 @@
         <li><a data-toggle="tab" href="#tab-cats">{{ lang._('Categories') }}</a></li>
         <li><a data-toggle="tab" href="#tab-rules">{{ lang._('Group rules') }}</a></li>
         <li><a data-toggle="tab" href="#tab-settings">{{ lang._('Settings') }}</a></li>
-        <li><a data-toggle="tab" href="#tab-cloud">{{ lang._('Cloud lists') }}</a></li>
         <li><a data-toggle="tab" href="#tab-test">{{ lang._('Test a website') }}</a></li>
         <li><a data-toggle="tab" href="#tab-activity">{{ lang._('Activity') }}</a></li>
     </ul>
@@ -32,13 +31,9 @@
                     <div id="cfs-ov-extra"></div>
                 </div>
             </div>
-            <div class="l7-hint">
-                {{ lang._('Devices must use this firewall as their DNS server for category filtering to work. Websites that use their own encrypted DNS (DNS over HTTPS) can only be stopped with Application Control.') }}
-            </div>
         </div>
 
         <div id="tab-cats" class="tab-pane fade">
-            <div class="l7-hint">{{ lang._('Tick the categories to block for everybody. To block categories only for a group, use "Group rules".') }}</div>
             <div class="l7-scroll">
                 <table class="l7-table" id="tbl-cats">
                     <thead><tr><th style="width:3em">{{ lang._('Block') }}</th><th>{{ lang._('Category') }}</th><th>{{ lang._('What it covers') }}</th><th class="num">{{ lang._('Websites listed') }}</th></tr></thead>
@@ -49,7 +44,6 @@
         </div>
 
         <div id="tab-rules" class="tab-pane fade">
-            <div class="l7-hint">{{ lang._('Block or allow categories for one group only: a network, some devices, named users, or certain hours. Group rules need device addresses (not sign-in names).') }}</div>
             <table id="grid-cfsrules" class="table table-condensed table-hover table-striped" data-editDialog="DialogCfsRule" data-editAlert="l7-pending">
                 <thead>
                     <tr>
@@ -85,19 +79,6 @@
             <button class="btn btn-primary" id="cfs-save" type="button"><i class="fa fa-save"></i> {{ lang._('Save') }}</button>
         </div>
 
-        <div id="tab-cloud" class="tab-pane fade">
-            <div class="l7-toolbar">
-                <button class="btn btn-primary" id="cloud-update" type="button"><i class="fa fa-cloud-download"></i> {{ lang._('Update everything now') }}</button>
-                <span class="l7-muted" id="cloud-note"></span>
-            </div>
-            <div class="l7-grid2">
-                <div class="l7-card"><h3>{{ lang._('Website categories') }}</h3><table class="l7-table" id="tbl-cloud-cats"><thead><tr><th>{{ lang._('Category') }}</th><th class="num">{{ lang._('Websites') }}</th><th>{{ lang._('Updated') }}</th></tr></thead><tbody></tbody></table></div>
-                <div class="l7-card"><h3>{{ lang._('Bad address lists') }}</h3><table class="l7-table" id="tbl-cloud-ips"><thead><tr><th>{{ lang._('List') }}</th><th class="num">{{ lang._('Addresses') }}</th><th>{{ lang._('In use') }}</th><th>{{ lang._('Updated') }}</th></tr></thead><tbody></tbody></table></div>
-                <div class="l7-card"><h3>{{ lang._('Malware hashes and virus signatures') }}</h3><table class="l7-table" id="tbl-cloud-av"><thead><tr><th>{{ lang._('Kind') }}</th><th class="num">{{ lang._('Entries') }}</th><th>{{ lang._('Updated') }}</th></tr></thead><tbody></tbody></table>
-                    <p class="l7-muted" style="margin-top:8px">{{ lang._('Used by Protection > Antivirus.') }}</p></div>
-            </div>
-        </div>
-
         <div id="tab-test" class="tab-pane fade">
             <div class="l7-card">
                 <h3>{{ lang._('Which category is this website in?') }}</h3>
@@ -110,7 +91,6 @@
         </div>
 
         <div id="tab-activity" class="tab-pane fade">
-            <div class="l7-hint">{{ lang._('Websites the filter refused to resolve in the last 24 hours. Click Allow if something was blocked by mistake.') }}</div>
             <div class="l7-scroll">
                 <table class="l7-table" id="tbl-cfslog">
                     <thead><tr><th>{{ lang._('Time') }}</th><th>{{ lang._('Device') }}</th><th>{{ lang._('Website asked for') }}</th><th>{{ lang._('Category') }}</th><th>{{ lang._('Action') }}</th></tr></thead>
@@ -192,8 +172,6 @@ $(document).ready(function () {
             extra.push((ST.threatIps && ST.threatIps.length ? '<i class="fa fa-check" style="color:var(--l7-ok)"></i> ' : '<i class="fa fa-times l7-muted"></i> ') + '{{ lang._('Bad address lists') }}' + (ST.threatIps && ST.threatIps.length ? ' (' + E(ST.threatIps.join(', ')) + ')' : ''));
             $('#cfs-ov-extra').html(extra.map(function (x) { return '<div style="margin:6px 0">' + x + '</div>'; }).join(''));
             renderCats();
-            renderCloud();
-            if (!ST.feedUrl) { $('#cloud-note').text('{{ lang._('No cloud server is set (Settings).') }}'); }
         });
     }
 
@@ -204,22 +182,6 @@ $(document).ready(function () {
         $('#tbl-cats tbody').html(CATS.map(function (c) {
             return '<tr><td><input type="checkbox" class="cat-on" data-id="' + c.id + '"' + (on.indexOf(c.id) >= 0 ? ' checked' : '') + '></td><td><strong>' + E(c.name) + '</strong></td><td>' + E(c.desc) + '</td><td class="num">' + L7.num(counts[c.id] || 0) + '</td></tr>';
         }).join(''));
-    }
-
-    function renderCloud() {
-        $('#tbl-cloud-cats tbody').html((ST.lists || []).map(function (l) {
-            return '<tr><td>' + E(NAME[l.category] || l.category) + '</td><td class="num">' + L7.num(l.feed + l.seed) + '</td><td>' + (l.updated ? E(L7.ago(l.updated)) : '<span class="l7-muted">{{ lang._('built-in list only') }}</span>') + '</td></tr>';
-        }).join(''));
-        var ipn = {c2: '{{ lang._('Botnet control servers') }}', compromised: '{{ lang._('Compromised hosts') }}', attackers: '{{ lang._('Attackers and scanners') }}', drop: '{{ lang._('Hijacked networks') }}', tor: '{{ lang._('Tor exit nodes') }}'};
-        $('#tbl-cloud-ips tbody').html((ST.ips || []).map(function (l) {
-            return '<tr><td>' + E(ipn[l.list] || l.list) + '</td><td class="num">' + L7.num(l.entries) + '</td><td>' + (l.enabled ? L7.tag('{{ lang._('yes') }}', 'allow') : '<span class="l7-muted">{{ lang._('no') }}</span>') + '</td><td>' + (l.updated ? E(L7.ago(l.updated)) : '-') + '</td></tr>';
-        }).join(''));
-        var h = ST.hashes || {}, sg = ST.signatures || {};
-        var rows = [['{{ lang._('SHA-256 hashes') }}', h.sha256], ['{{ lang._('SHA-1 hashes') }}', h.sha1], ['{{ lang._('MD5 hashes') }}', h.md5]].map(function (r) {
-            return '<tr><td>' + E(r[0]) + '</td><td class="num">' + L7.num(r[1] ? r[1].count : 0) + '</td><td>' + (r[1] && r[1].updated ? E(L7.ago(r[1].updated)) : '-') + '</td></tr>';
-        });
-        rows.push('<tr><td>{{ lang._('Virus signature rules') }}</td><td class="num">' + L7.num(sg.rules || 0) + '</td><td>' + (sg.ts ? E(L7.ago(sg.ts)) : '-') + '</td></tr>');
-        $('#tbl-cloud-av tbody').html(rows.join(''));
     }
 
     $('#tab-overview').on('click', '#cfs-on, #cfs-off', function () {
@@ -239,16 +201,6 @@ $(document).ready(function () {
             if (r && r.result === 'saved') { L7.pending(); L7.toast('{{ lang._('Saved. Click Apply changes to activate.') }}'); load(); }
             else { L7.toast('{{ lang._('Could not save.') }}', 'bad'); }
         });
-    });
-
-    $('#cloud-update').on('click', function () {
-        var b = $(this).prop('disabled', true).find('i').attr('class', 'fa fa-spinner fa-pulse');
-        L7.post('/api/layer7security/cfs/update', {}).done(function (r) {
-            b.attr('class', 'fa fa-cloud-download'); $('#cloud-update').prop('disabled', false);
-            if (r && r.result === 'ok') { L7.toast('{{ lang._('Lists updated.') }}'); }
-            else { L7.toast((r && r.message) || '{{ lang._('The cloud server could not be reached.') }}', 'bad'); }
-            load();
-        }).fail(function () { b.attr('class', 'fa fa-cloud-download'); $('#cloud-update').prop('disabled', false); L7.toast('{{ lang._('The request failed.') }}', 'bad'); });
     });
 
     function test() {

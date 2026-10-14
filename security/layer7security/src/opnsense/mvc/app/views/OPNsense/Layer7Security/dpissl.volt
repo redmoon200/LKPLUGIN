@@ -67,7 +67,6 @@
         </div>
 
         <div id="tab-log" class="tab-pane fade">
-            <div class="l7-hint">{{ lang._('Recent connections handled by the decryption proxy. "Decrypted" connections were opened and scanned, "Passed" connections were left alone.') }}</div>
             <div class="l7-scroll">
                 <table class="l7-table" id="tbl-dpilog">
                     <thead><tr><th>{{ lang._('Time') }}</th><th>{{ lang._('Device') }}</th><th>{{ lang._('Site') }}</th><th>{{ lang._('Handled') }}</th><th>{{ lang._('Result') }}</th></tr></thead>

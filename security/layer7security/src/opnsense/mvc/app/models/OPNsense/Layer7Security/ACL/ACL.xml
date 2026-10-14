@@ -19,6 +19,8 @@
             <pattern>ui/layer7security/inspection*</pattern>
             <pattern>ui/layer7security/antivirus*</pattern>
             <pattern>ui/layer7security/settings*</pattern>
+            <pattern>ui/layer7security/license*</pattern>
+            <pattern>api/layer7security/license/*</pattern>
             <pattern>api/layer7security/service/*</pattern>
             <pattern>api/layer7security/settings/*</pattern>
             <pattern>api/layer7security/dashboard/*</pattern>

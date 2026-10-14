@@ -20,6 +20,8 @@ use OPNsense\Layer7Security\Layer7Security;
  */
 class AuditController extends ApiControllerBase
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     private const PERIODS = [300, 3600, 21600, 86400, 604800, 2592000, 31536000];
 
     private function user()

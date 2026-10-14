@@ -15,6 +15,8 @@ use OPNsense\Layer7Security\PolicyCompiler;
 /** Content filtering (CFS): website categories, safe search, threat lists and what the cloud provides */
 class CfsController extends ApiControllerBase
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     private function json($out, $default = [])
     {
         $data = json_decode(trim($out), true);

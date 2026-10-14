@@ -230,6 +230,11 @@ def ingest():
         return {'ingested': 0, 'enabled': True, 'initialised': True}
     mark = int(mark)
     con.close()
+    # the engine's event numbers start again when its table was emptied (retention, new database): follow it
+    top = eng.execute('SELECT COALESCE(MAX(id), 0) FROM events').fetchone()[0]
+    reset = mark > top
+    if reset:
+        mark = 0
     rows = eng.execute("SELECT id, ts, type, client, server, app, category, host, policy, detail FROM events"
                        " WHERE id > ? AND type IN ('ai-use','ai-block') ORDER BY id LIMIT 5000", (mark,)).fetchall()
     last = mark
@@ -240,7 +245,7 @@ def ingest():
                detail='%s; policy: %s' % (r['detail'], r['policy']), ts=r['ts'], cfg=cfg)
         last = r['id']
     eng.close()
-    if last != mark:
+    if last != mark or reset:
         con = connect()
         meta_set(con, 'engine_event_id', last)
         con.close()

@@ -13,6 +13,8 @@ use OPNsense\Core\Backend;
 
 class DnsController extends ApiControllerBase
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     /** download category lists from the configured feed */
     public function updateAction()
     {

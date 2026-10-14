@@ -21,15 +21,6 @@
             <div id="in-state"></div>
             <div class="l7-grid2">
                 <div class="l7-card"><h3>{{ lang._('Checklist') }}</h3><div id="in-check"></div></div>
-                <div class="l7-card"><h3>{{ lang._('What is looked for') }}</h3>
-                    <ul style="padding-left:18px;line-height:1.7">
-                        <li>{{ lang._('Payment card numbers (checked with the card checksum)') }}</li>
-                        <li>{{ lang._('Identity numbers: SSN, Aadhaar, PAN, IBAN, UK NINO') }}</li>
-                        <li>{{ lang._('API keys, private keys and tokens') }}</li>
-                        <li>{{ lang._('Source code') }}</li>
-                    </ul>
-                    <p class="l7-muted">{{ lang._('Only masked excerpts are ever stored, for example **** **** **** 1111.') }}</p>
-                </div>
             </div>
             <div class="l7-hint warn">
                 {{ lang._('This looks into encrypted traffic to the AI services you pick. Acknowledge the privacy notice (AI Audit > Privacy), tell the people concerned, and install the DPI-SSL certificate on managed devices.') }}
@@ -40,7 +31,6 @@
         <div id="settings" class="tab-pane fade">
             {{ partial("layout_partials/base_form", ['fields': inspectionForm, 'id': 'frm_inspection']) }}
             <button class="btn btn-primary" id="in-save" type="button"><i class="fa fa-save"></i> {{ lang._('Save') }}</button>
-            <div class="l7-hint" style="margin-top:14px">{{ lang._('Choose which AI services are checked under AI > AI Service > Services ("Check content").') }}</div>
         </div>
 
         <div id="test" class="tab-pane fade">

@@ -19,6 +19,8 @@ use OPNsense\Layer7Security\PolicyCompiler;
  */
 class AppcontrolController extends ApiMutableModelControllerBase
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     protected static $internalModelName = 'layer7security';
     protected static $internalModelClass = '\OPNsense\Layer7Security\Layer7Security';
 

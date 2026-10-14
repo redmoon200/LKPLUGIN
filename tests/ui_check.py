@@ -37,6 +37,7 @@ PAGES = {
     '/ui/layer7security/audit': ['grid-audit', 'audit/search', 'audit/verify'],
     '/ui/layer7security/inspection': ['frm_inspection', 'inspection/status', 'test-text'],
     '/ui/layer7security/settings': ['frm_general', 'layer7security.general.enabled'],
+    '/ui/layer7security/license': ['lic-tiles', 'license/status', 'license/activate', 'license/trial', 'license/sync'],
     # the old addresses forward to the new pages
     '/ui/layer7security/policies': ['grid-policies', 'DialogPolicy'],
     '/ui/layer7security/dns': ['frm_cfs', 'cfs/status'],

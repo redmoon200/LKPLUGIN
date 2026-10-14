@@ -210,6 +210,53 @@ Lab notes: yara installed on the firewall (`pkg install yara`) and on the cloud 
 the cloud VM runs `l7cloud-feed.service` and `l7cloud-build.timer`. A leftover test address alias on the
 cloud VM from 0.3.0 testing was removed.
 
+## v0.5.0: license module, cloud dashboard, cleaner pages (2026-10-14)
+Requested: remove the unwanted texts (the "how to write a website rule" box, feature explanations on the
+dashboards, the cloud list tables); add a license module to the plugin; build a dashboard for the cloud server
+to monitor the feed updates and generate licenses.
+
+What was built:
+- **License module** (`License.php`, `LicenseGate.php`, `license.php`, `license_cloud.py`, `license.volt`,
+  menu Layer 7 > License): trial 30 days, standard 1 year, lifetime; Ed25519 signed keys (verified with the
+  `openssl` command, OPNsense PHP has no sodium); optional binding to the installation id; renewal must run
+  longer, a lifetime key cannot be replaced; anti-rollback mark with MAC; hard lock = protection off, pages
+  redirect to the License page, APIs answer 402, **the network keeps working** (fail open). Hourly check-in with
+  the cloud server (withdraw, reinstate, replacement key) and 15-minute state check by cron. See docs/LICENSING.md.
+- **Cloud dashboard** (`cloud/server/dashboard.py`, `dashboard.html`, `cloudcore.py`, `store.py`, `licenselib.py`,
+  port 8090): overview, feeds (files, sources, rebuild with live log), firewalls, license generator (create,
+  revoke, reinstate, replace, CSV), activity, settings. The feed server logs every request and answers
+  `/api/v1/checkin` and `/api/v1/trial`; the build writes `build_status.json`.
+- **Cleanup**: removed the website-rule how-to box, the overview explanations (CFS, Antivirus, AI Inspection,
+  DPI-SSL, Web Control settings, Sign-in, AI Service, Application Control tab hints), the CFS "Cloud lists" tab
+  and the Antivirus "Malware data" tab; the cloud server address, last check-in, last list update and
+  *Check in and update now* live on the License page.
+
+Decisions that need your attention:
+- The vendor **signing key** is on the cloud VM only (`/var/lib/l7cloud/license/signing.pem`); back it up
+  offline. The matching public key is compiled into the plugin. The dashboard password is in
+  `~/.lk-secrets/cloud_admin.txt` on the build machine (printed once by `install.sh`).
+- A fresh install is locked until a key or the trial is entered. The lab firewall runs with a lifetime key.
+
+Test evidence for 0.5.0:
+- **Unit tests**: 120 (license keys and the cloud server's license logic: 13 new; audit +1).
+- **End-to-end**: full run 223 passed of 224 on the installed package; the one failure (AI audit ingest) was a
+  real bug, fixed and re-run (see below). New section `lic` (60 checks): locked state (APIs 402, engine gone,
+  network untouched), refused keys (garbage, other firewall, expired), trial (once, off switch), renewal rules,
+  withdraw and reinstate, replacement key, expiry and clock rollback with the firewall clock moved (+100 days,
+  +400 days), dashboard security and data. After the fix: `lic`, `audit`, `sig` and `av` pass on the final package.
+- **Browser**: all earlier tests plus `ui_cloud.py` (dashboard sign-in, pages, generator, revoke, phone width)
+  and `ui_license.py` (locked pages redirect, wrong key refused, key unlocks); no JavaScript errors.
+- **Package**: `os-layer7security-0.5.0.pkg` (about 210 KB) installed over 0.4.0 and again after
+  `pkg delete`; `pkg check -s` clean; the license survives a reinstall.
+
+Bugs found and fixed while testing this release:
+- AI audit ingest never recovered when the engine's event table started numbering again (retention emptied it):
+  the stored position was larger than every new id, so no new events were audited. Ingest now follows the table.
+- `note_client` overwrote the host name with an empty value when a check-in did not carry one.
+- On Windows `openssl` output has CRLF; the PEM was doubled when written back (tests only).
+- The package carried `__pycache__` files from the build machine; the build script excludes them now.
+- `check()` in the e2e helpers shared a variable with `api()`, so descriptions were sometimes wrong.
+
 ## Bugs found and fixed while testing
 - Host-matching policies matched the DNS flow itself and put the resolver in the
   block table (cut DNS). DNS flows are no longer policy targets.
@@ -241,8 +288,9 @@ cloud VM from 0.3.0 testing was removed.
 | `qm snapshot 9101 phase7-before --description "before v0.3.0 package reinstall test"` | 2026-10-13 10:09 UTC, before removing the plugin and reinstalling from the 0.3.0 package; `qm listsnapshot 9101` to check |
 | `qm snapshot 9101 phase8-before`, `qm snapshot 9102 phase8-before`, `qm snapshot 9103 phase8-before` | 2026-10-13, before starting 0.4.0 (descriptions "before v0.4.0 console redesign", "before v0.4.0 feeds", "before v0.4.0") |
 | `qm snapshot 9101 phase9-before --description "before v0.4.0 package upgrade test"` | before building the 0.4.0 package and upgrading the lab firewall to it |
+| `qm snapshot 9101 phase10-before`, `qm snapshot 9102 phase10-before`, `qm snapshot 9103 phase10-before` | 2026-10-14, before the 0.5.0 license module and cloud dashboard |
 
-No new `qm` commands were needed for 0.2.0 (no VM was created, resized or snapshotted). 0.3.0 needed the one snapshot above and no rollback; 0.4.0 needed the snapshots above and no rollback.
+No new `qm` commands were needed for 0.2.0 (no VM was created, resized or snapshotted). 0.3.0 needed the one snapshot above and no rollback; 0.4.0 and 0.5.0 needed the snapshots above and no rollback.
 
 ## Rollbacks
 - **9101 rebuilt.** Cause: I imported the OPNsense `serial` image, which is install

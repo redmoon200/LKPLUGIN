@@ -15,6 +15,8 @@ use OPNsense\Layer7Security\PolicyCompiler;
 /** Users and Access: who is signed in to the web access portal, and its log */
 class AccessController extends ApiControllerBase
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     private function json($out, $default)
     {
         $data = json_decode(trim($out), true);

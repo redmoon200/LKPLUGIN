@@ -208,7 +208,18 @@ def due(state, part):
     return cloudlib.now() - ts >= DUE_HOURS[part] * 3600 - 300
 
 
+def license_locked():
+    """the plugin keeps its lists up to date only while it has a valid license (snapshot written by License.php)"""
+    try:
+        with open(os.path.join(cloudlib.BASE, 'license_state.json')) as f:
+            return json.load(f).get('valid') is False
+    except (OSError, ValueError):
+        return False
+
+
 def update(parts, quiet, only_missing=False, force=False):
+    if license_locked():
+        return {'result': 'skipped', 'message': 'no valid license'}
     cfg = cloudlib.settings()
     base = cloudlib.base_url(cfg)
     if not base:

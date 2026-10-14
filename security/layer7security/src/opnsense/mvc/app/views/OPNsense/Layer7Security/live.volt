@@ -98,7 +98,6 @@
         </div>
 
         <div id="tab-blocked" class="tab-pane fade">
-            <div class="l7-hint">{{ lang._('Connections that were stopped in the last 10 minutes. If something was blocked by mistake, click Allow.') }}</div>
             <div class="l7-scroll">
                 <table class="l7-table" id="tbl-blocked">
                     <thead>

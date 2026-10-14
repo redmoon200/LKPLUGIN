@@ -351,3 +351,20 @@ signatures 12 h; Apply downloads what is enabled but missing).
   health sites on the exclusion list.
 - One engine process captures all selected interfaces; for very high line
   rates switch the capture backend to netmap (planned behind `on_packet`).
+
+## License module (0.5.0)
+
+`License.php` verifies Ed25519 signed keys with the embedded vendor public key
+(through the `openssl` command, since OPNsense PHP has no sodium), keeps the key in
+`/var/db/layer7security/license.json` and the anti-rollback mark in
+`license_seen.json`. There is a single choke point: `PolicyCompiler::general()`
+reports `enabled = false` while the license is locked, and the plugin hook
+`layer7security_enabled()` does the same, so apply stops the engine, DNS filter,
+proxy, portal and pf rules. Controllers use the `LicenseGate` trait (pages redirect to
+the License page, APIs answer 402); the License controllers and service control are
+exempt. `license.php` (configd `license-check`, every 15 minutes) re-applies when the
+state flips between valid and locked; `license_cloud.py` does the hourly check-in and
+the trial request. The cloud side (`cloud/server/`): `licenselib.py` (keys),
+`store.py` (SQLite), `cloudcore.py` (check-in, trial, generator logic),
+`feedserver.py` (public), `dashboard.py` + `dashboard.html` (admin). See
+[LICENSING.md](LICENSING.md).

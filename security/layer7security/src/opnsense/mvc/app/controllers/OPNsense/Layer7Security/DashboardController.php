@@ -10,6 +10,8 @@ namespace OPNsense\Layer7Security;
 
 class DashboardController extends \OPNsense\Base\IndexController
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     public function indexAction()
     {
         $this->view->pick('OPNsense/Layer7Security/dashboard');

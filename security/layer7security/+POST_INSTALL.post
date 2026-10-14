@@ -5,3 +5,5 @@
 mkdir -p /usr/local/etc/layer7security /var/db/layer7security
 /usr/local/opnsense/scripts/OPNsense/Layer7Security/catalog.sh >/dev/null 2>&1 || :
 /usr/local/sbin/configctl layer7security apply >/dev/null 2>&1 || :
+# pick up the scheduled jobs of this version (license check, check-in)
+/usr/local/sbin/configctl cron restart >/dev/null 2>&1 || :

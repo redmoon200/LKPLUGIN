@@ -13,30 +13,12 @@
         <li class="active"><a data-toggle="tab" href="#overview">{{ lang._('Overview') }}</a></li>
         <li><a data-toggle="tab" href="#settings">{{ lang._('Settings') }}</a></li>
         <li><a data-toggle="tab" href="#detections">{{ lang._('Detections') }}</a></li>
-        <li><a data-toggle="tab" href="#status">{{ lang._('Malware data') }}</a></li>
         <li><a data-toggle="tab" href="#tools">{{ lang._('Test a file') }}</a></li>
     </ul>
 
     <div class="tab-content">
         <div id="overview" class="tab-pane fade in active">
             <div id="av-state"></div>
-            <div class="l7-grid2">
-                <div class="l7-card"><h3>{{ lang._('How a download is checked') }}</h3>
-                    <ol style="padding-left:18px;line-height:1.7">
-                        <li>{{ lang._('The type of the file is recognised from its content (program, script, installer, archive).') }}</li>
-                        <li>{{ lang._('Its MD5, SHA-1 and SHA-256 are looked up in the malware lists (cloud server, your own list, EICAR).') }}</li>
-                        <li>{{ lang._('Virus signatures (YARA rules) are matched against the content.') }}</li>
-                        <li>{{ lang._('Each result is allowed, logged or blocked as you chose under Settings.') }}</li>
-                    </ol>
-                </div>
-                <div class="l7-card"><h3>{{ lang._('What it cannot do') }}</h3>
-                    <ul style="padding-left:18px;line-height:1.7">
-                        <li>{{ lang._('It is not a replacement for antivirus software on the computers.') }}</li>
-                        <li>{{ lang._('Files inside archives and password-protected files are not opened.') }}</li>
-                        <li>{{ lang._('HTTPS downloads are only seen for sites that DPI-SSL decrypts.') }}</li>
-                    </ul>
-                </div>
-            </div>
         </div>
 
         <div id="settings" class="tab-pane fade">
@@ -68,18 +50,6 @@
                 </thead>
                 <tbody></tbody>
             </table>
-        </div>
-
-        <div id="status" class="tab-pane fade">
-            <div class="l7-toolbar">
-                <button class="btn btn-primary" id="feedAct" type="button"><i class="fa fa-cloud-download"></i> {{ lang._('Update from the cloud server now') }}</button>
-                <span id="feed-result"></span>
-            </div>
-            <div class="l7-grid2">
-                <div class="l7-card"><h3>{{ lang._('Malware hashes') }}</h3><table class="l7-table" id="tbl-hashes"><thead><tr><th>{{ lang._('Kind') }}</th><th class="num">{{ lang._('Entries') }}</th><th>{{ lang._('Updated') }}</th></tr></thead><tbody></tbody></table></div>
-                <div class="l7-card"><h3>{{ lang._('Virus signatures') }}</h3><dl class="l7-kv" id="sig-info"></dl></div>
-            </div>
-            <div class="l7-hint">{{ lang._('Hashes and signatures are collected by your cloud server from public sources (abuse.ch MalwareBazaar and ThreatFox, VirusShare and open YARA rule sets) and refreshed every few hours. The address of the cloud server is set under Protection > CFS > Settings.') }}</div>
         </div>
 
         <div id="tools" class="tab-pane fade">
@@ -145,26 +115,12 @@ $(document).ready(function () {
             var msg = '';
             if (!on) { msg = '<div class="l7-hint warn">{{ lang._('Antivirus is switched off. Turn it on under Settings and click Apply changes.') }}</div>'; }
             else if (!sig.installed) { msg = '<div class="l7-hint warn">{{ lang._('The signature scanner (package yara) is not installed. Hashes and file types still work.') }}</div>'; }
-            else if (!sig.ready && ST.yaraAction !== 'off') { msg = '<div class="l7-hint warn">{{ lang._('Signatures are not downloaded yet. Open "Malware data" and click Update.') }}</div>'; }
+            else if (!sig.ready && ST.yaraAction !== 'off') { msg = '<div class="l7-hint warn">{{ lang._('Signatures are not downloaded yet. Open License and click "Check in and update now".') }}</div>'; }
             $('#av-state').html(msg);
-            var h = ST.hashesByType || {};
-            $('#tbl-hashes tbody').html([['SHA-256', h.sha256], ['SHA-1', h.sha1], ['MD5', h.md5]].map(function (r) { return '<tr><td>' + r[0] + '</td><td class="num">' + L7.num(r[1] || 0) + '</td><td>' + (ST.feedTs ? E(L7.ago(ST.feedTs)) : '-') + '</td></tr>'; }).join(''));
-            $('#sig-info').html([['{{ lang._('Scanner installed') }}', sig.installed ? '{{ lang._('yes') }}' : '{{ lang._('no') }}'], ['{{ lang._('Rules loaded') }}', L7.num(sig.rules || 0)],
-                ['{{ lang._('Rule files') }}', (sig.files || 0) + (sig.rejected ? ' (' + sig.rejected + ' {{ lang._('rejected') }})' : '')], ['{{ lang._('Updated') }}', sig.ts ? L7.ago(sig.ts) : '-'],
-                ['{{ lang._('Mode') }}', ST.yaraAction || '-']].map(function (p) { return '<dt>' + E(p[0]) + '</dt><dd>' + E(p[1]) + '</dd>'; }).join(''));
         });
     }
 
     L7.applyButton('#reconfigureAct', function () { loadStatus(); $('#grid-av').bootgrid('reload'); }, ['frm_antivirus']);
-
-    $('#feedAct').on('click', function () {
-        $('#feed-result').html('<i class="fa fa-spinner fa-pulse"></i>');
-        L7.post('/api/layer7security/antivirus/feed_update', {}).done(function (d) {
-            if (d && d.updated) { $('#feed-result').html(L7.pill('{{ lang._('Updated') }}', 'ok')); }
-            else { $('#feed-result').html(L7.pill((d && d.error) || '{{ lang._('Nothing was updated.') }}', 'bad')); }
-            loadStatus();
-        });
-    });
 
     $('#checkAct').on('click', function () {
         L7.post('/api/layer7security/antivirus/check', {hash: $('#check-hash').val()}).done(function (d) {

@@ -18,7 +18,6 @@
 
     <div class="tab-content">
         <div id="tab-cats" class="tab-pane fade in active">
-            <div class="l7-hint">{{ lang._('Choose what happens to each kind of application for everybody: Allow (nothing special), Watch (only record it) or Block. For one group only, use "Advanced rules". Applications are only seen on the networks chosen in Layer 7 > Settings.') }}</div>
             <div class="l7-scroll">
                 <table class="l7-table" id="tbl-appcats">
                     <thead><tr><th>{{ lang._('Category') }}</th><th>{{ lang._('Examples') }}</th><th style="width:19em">{{ lang._('What to do') }}</th></tr></thead>
@@ -29,7 +28,6 @@
         </div>
 
         <div id="tab-apps" class="tab-pane fade">
-            <div class="l7-hint">{{ lang._('Search the applications this firewall recognises and set one precisely.') }}</div>
             <div class="l7-toolbar">
                 <input type="text" id="app-q" class="form-control grow" placeholder="{{ lang._('Search, for example youtube or tiktok') }}" maxlength="40"/>
                 <span class="l7-muted" id="app-total"></span>
@@ -44,7 +42,6 @@
         </div>
 
         <div id="tab-rules" class="tab-pane fade">
-            <div class="l7-hint">{{ lang._('Full rules: choose applications, categories or website names, for certain networks, devices, users and hours.') }}</div>
             <table id="grid-policies" class="table table-condensed table-hover table-striped" data-editDialog="DialogPolicy" data-editAlert="l7-pending">
                 <thead>
                     <tr>
@@ -77,7 +74,6 @@
         </div>
 
         <div id="tab-activity" class="tab-pane fade">
-            <div class="l7-hint">{{ lang._('Connections stopped by application rules in the last 24 hours.') }}</div>
             <div class="l7-scroll">
                 <table class="l7-table" id="tbl-applog">
                     <thead><tr><th>{{ lang._('Time') }}</th><th>{{ lang._('Device') }}</th><th>{{ lang._('Application') }}</th><th>{{ lang._('Website or address') }}</th><th>{{ lang._('Rule') }}</th></tr></thead>

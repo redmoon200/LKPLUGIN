@@ -13,6 +13,8 @@ use OPNsense\Core\Backend;
 
 class GeoController extends ApiControllerBase
 {
+    use \OPNsense\Layer7Security\LicenseGate;
+
     /** download the country database and rebuild the policy tables */
     public function updateAction()
     {
