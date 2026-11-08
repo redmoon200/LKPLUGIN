@@ -87,7 +87,7 @@ $(document).ready(function () {
     $('#grid-av').UIBootgrid({
         search: '/api/layer7security/antivirus/search',
         options: {
-            rowCount: [25, 50, 100, 250, 500, -1],
+            rowCount: [25, 50, 100, 250, 500],
             requestHandler: function (request) { request.period = $('#av-period').val(); return request; },
             formatters: {
                 time: function (c, row) { return E(new Date(row.ts * 1000).toLocaleString()); },

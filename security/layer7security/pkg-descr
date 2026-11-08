@@ -20,6 +20,12 @@ https://github.com/redmoon200/LKPLUGIN
 Plugin Changelog
 ================
 
+0.6.7
+
+* the page header shows the maker's logo larger with the company and product name beside it, on every page
+* the log tables (Live Sessions > History, AI Audit, Antivirus detections) have a Full view button: the table with its search and period controls fills the browser window (Esc closes it)
+* the rows-per-page menu of these tables stops at 500: a page of thousands of rows takes the browser many seconds to draw; use the page buttons or Full view for the rest
+
 0.6.6
 
 * the Overview boxes "Busiest devices" and "What was stopped" no longer let a long device name or IPv6 address push the table out of its box (long names wrap, the two boxes get a row of their own)

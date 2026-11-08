@@ -7,7 +7,9 @@
 # Layout check of the Layer 7 pages in a real browser (Playwright/Chromium), at several window widths:
 #   - nothing sticks out of its box (a long IPv6 address or host name in a table must wrap, not cross into the next box)
 #   - no table scrolls inside a small box of its own (the grids grow with their rows)
-#   - the history grid shows every row when "All" is chosen, and the last row can be reached by scrolling
+#   - the maker's logo and name are in every page header
+#   - the history grid shows every row of its largest page (500), the last row can be reached by scrolling, and
+#     "Full view" fills the window below the OPNsense top bar and closes with Esc
 #
 #   python tests/ui_layout.py        (OPN_HOST, OPN_UI_USER, OPN_UI_PASS as in the other ui_ tests)
 
@@ -91,32 +93,50 @@ def main():
                     page.evaluate(LONG_NAMES)
                     page.wait_for_timeout(300)
                 result = page.evaluate(SCAN)
+                # the maker's logo and name are in the page header (the name is hidden below 900px by design)
+                if not page.locator('.l7-brand img').is_visible() or (width >= 1100 and 'Rootsecurity' not in (page.locator('.l7-brand-text').inner_text() if page.locator('.l7-brand-text').is_visible() else '')):
+                    result['sticks'].append({'box': 'page header', 'over': 0, 'el': 'brand logo or name not visible'})
                 bad = bool(result['sticks'] or result['innerScroll'] or result['overlap'])
                 problems += bad
                 print('%-11s %4d  %s' % (name, width, 'PROBLEM ' + json.dumps(result) if bad else 'ok'))
             page.context.close()
 
-        # the history grid with "All"
+        # the history grid at its largest page size (500 rows): every row is drawn, the page scrolls, the last row is reachable
+        # (a page of thousands of rows is not offered: the browser needs many seconds to draw it)
         page = login(browser, 1400)
         page.goto('https://%s/ui/layer7security/live' % HOST)
         page.wait_for_load_state('networkidle')
         page.click('a[href="#tab-history"]')
         page.wait_for_timeout(3000)
-        page.locator('button.dropdown-toggle:has-text("25")').first.click()
+        page.locator('#grid-flows-rowcount-button').click()
         with page.expect_response(lambda r: 'flows/search' in r.url) as reply:
-            page.locator('.dropdown-menu a:has-text("All")').first.click()
+            page.locator('.dropdown-menu a:text-is("500")').first.click()
         total = reply.value.json().get('total')
-        page.wait_for_timeout(5000)
+        page.wait_for_function("(n) => document.querySelectorAll('.tabulator-row').length >= n", arg=min(total or 0, 500), timeout=60000)
+        page.wait_for_timeout(1000)
         shown = page.evaluate("document.querySelectorAll('.tabulator-row').length")
         page.mouse.move(700, 450)
         page.mouse.wheel(0, 500000)
         page.wait_for_timeout(1200)
         last = page.evaluate("(() => { const r = [...document.querySelectorAll('.tabulator-row')].pop(); return r ? r.getBoundingClientRect().bottom : null; })()")
         foot = page.evaluate("document.querySelector('footer, .page-foot').getBoundingClientRect().top")
-        capped = min(total, 2000) if total else None
+        capped = min(total, 500) if total else None
         ok = bool(shown) and total is not None and shown == capped and last is not None and last <= foot + 2
-        print('history All: %s rows shown of %s (cap 2000), last row reachable: %s -> %s' % (shown, total, last is not None and last <= foot + 2, 'ok' if ok else 'PROBLEM'))
+        print('history 500 rows: %s rows shown of %s, last row reachable: %s -> %s' % (shown, total, last is not None and last <= foot + 2, 'ok' if ok else 'PROBLEM'))
         problems += not ok
+
+        # full view: the history table with its controls fills the window below the OPNsense top bar, Esc closes it
+        page.mouse.wheel(0, -500000)
+        page.wait_for_timeout(500)
+        page.click('#grid-flows-actions-group .l7-full-btn')
+        page.wait_for_timeout(1200)
+        box = page.evaluate("(() => { const e = document.querySelector('.l7-fullview'); if (!e) return null; const r = e.getBoundingClientRect(); const nav = document.querySelector('nav.navbar').getBoundingClientRect(); const t = e.querySelector('.l7-toolbar'); return {w: r.width, h: r.height, top: r.top, navBottom: nav.bottom, toolbarVisible: !!t && t.getBoundingClientRect().top >= nav.bottom - 1}; })()")
+        full_ok = bool(box) and box['w'] >= 1399 and box['top'] >= box['navBottom'] - 1 and box['h'] >= 600 and box['toolbarVisible']
+        page.keyboard.press('Escape')
+        page.wait_for_timeout(500)
+        closed = page.locator('.l7-fullview').count() == 0
+        print('full view: %s, closes with Esc: %s -> %s' % (box, closed, 'ok' if full_ok and closed else 'PROBLEM'))
+        problems += not (full_ok and closed)
         browser.close()
     print('problems:', problems)
     return 1 if problems else 0

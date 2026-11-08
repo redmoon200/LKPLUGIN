@@ -133,7 +133,7 @@
         const grid = $("#grid-audit").UIBootgrid({
             search: '/api/layer7security/audit/search',
             options: {
-                rowCount: [25, 50, 100, 250, 500, -1],
+                rowCount: [25, 50, 100, 250, 500],
                 requestHandler: function (request) {
                     request.period = $('#audit-period').val();
                     request.kind = $('#audit-kind').val();

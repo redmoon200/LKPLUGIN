@@ -460,7 +460,7 @@ $(document).ready(function () {
         var grid = $('#grid-flows').UIBootgrid({
             search: '/api/layer7security/flows/search',
             options: {
-                rowCount: [25, 50, 100, 250, 500, -1],
+                rowCount: [25, 50, 100, 250, 500],
                 requestHandler: function (request) {
                     request.period = $('#flow-period').val();
                     request.only = $('#flow-blocked').is(':checked') ? 'blocked' : 'all';

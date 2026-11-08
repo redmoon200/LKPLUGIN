@@ -224,7 +224,8 @@ window.L7 = (function ($) {
         if (!$root.length) { return; }
         if (!$root.find('.l7-brand').length) {
             $root.find('.l7-head-side').first().prepend('<a class="l7-brand" href="' + esc(brand.site) + '" target="_blank" rel="noopener" title="' +
-                esc(brand.company) + '"><img src="' + esc(brand.logo) + '" alt="' + esc(brand.company) + '"></a>');
+                esc(brand.company) + '"><img src="' + esc(brand.logo) + '" alt="' + esc(brand.company) + '">' +
+                '<span class="l7-brand-text"><strong>Rootsecurity Solutions</strong><span>' + esc(brand.product) + '</span></span></a>');
         }
         if (!$root.find('.l7-foot').length) {
             $root.append('<div class="l7-foot">' + esc(brand.product) + ' by <a href="' + esc(brand.site) + '" target="_blank" rel="noopener">' + esc(brand.company) +
@@ -248,6 +249,49 @@ window.L7 = (function ($) {
         $.fn.UIBootgrid.l7growing = true;
     }
     $(growingGrids);
+
+    /* "Full view" for the log tables: the table (with its search and period controls) fills the whole browser window and
+       scrolls by itself. The button sits next to Refresh; Esc or the same button closes it. */
+    var FULL_VIEW_GRIDS = ['grid-flows', 'grid-audit', 'grid-av'];
+    function closeFullView() {
+        $('.l7-fullview').removeClass('l7-fullview').css({'background-color': '', top: ''});
+        $('body').removeClass('l7-noscroll');
+        $('.l7-full-btn .icon').removeClass('fa-compress').addClass('fa-expand');
+        $('.l7-full-btn').attr('title', 'Full view');
+    }
+    function openFullView($wrap) {
+        var bg = '', el = $wrap[0];
+        while (el && el.nodeType === 1) {
+            bg = window.getComputedStyle(el).backgroundColor;
+            if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') { break; }
+            el = el.parentElement;
+        }
+        // the OPNsense top bar stays above anything we draw: start below it so no control is hidden
+        var nav = document.querySelector('nav.navbar'), top = nav ? Math.max(0, Math.round(nav.getBoundingClientRect().bottom)) : 0;
+        $wrap.addClass('l7-fullview').css({'background-color': bg && bg !== 'rgba(0, 0, 0, 0)' ? bg : '#fff', top: top + 'px'});
+        $('body').addClass('l7-noscroll');
+        $('.l7-full-btn .icon').removeClass('fa-expand').addClass('fa-compress');
+        $('.l7-full-btn').attr('title', 'Close full view (Esc)');
+    }
+    function fullViewInit() {
+        function addButtons() {
+            FULL_VIEW_GRIDS.forEach(function (id) {
+                var $group = $('#' + id + '-actions-group');
+                if (!$group.length || $group.find('.l7-full-btn').length) { return; }
+                $('<button type="button" class="btn btn-default l7-full-btn" title="Full view"><span class="icon fa-solid fa-expand"></span></button>')
+                    .appendTo($group)
+                    .on('click', function () {
+                        var $wrap = $('#' + id).parent();
+                        if ($wrap.hasClass('l7-fullview')) { closeFullView(); } else { openFullView($wrap); }
+                    });
+            });
+        }
+        addButtons();
+        // the grids build their toolbar after the page is ready (and after a tab is shown for the first time)
+        new MutationObserver(addButtons).observe(document.body, {childList: true, subtree: true});
+        $(document).on('keydown', function (e) { if (e.key === 'Escape') { closeFullView(); } });
+    }
+    $(fullViewInit);
 
     return {
         brand: brand, esc: esc, bytes: bytes, rate: rate, dur: dur, ago: ago, when: when, num: num, pill: pill, tag: tag, tile: tile,
