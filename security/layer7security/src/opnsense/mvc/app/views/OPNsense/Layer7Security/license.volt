@@ -40,6 +40,37 @@
             </div>
             <div class="l7-tiles" id="lic-cloud" style="margin:12px 0 0"></div>
         </div>
+        <div class="l7-card" style="grid-column:1/-1">
+            <h3>{{ lang._('Updates') }}</h3>
+            <div class="l7-tiles" id="upd-tiles" style="margin:0 0 12px"></div>
+            <div class="l7-muted" id="upd-notes" style="white-space:pre-line;margin-bottom:10px"></div>
+            <div class="l7-toolbar">
+                <button class="btn btn-primary" id="upd-install" type="button" style="display:none"><i class="fa fa-download"></i> {{ lang._('Install the update') }}</button>
+                <button class="btn btn-default" id="upd-check" type="button"><i class="fa fa-refresh"></i> {{ lang._('Check for updates') }}</button>
+                <button class="btn btn-default" id="upd-rollback" type="button" style="display:none"><i class="fa fa-undo"></i> {{ lang._('Go back to the previous version') }}</button>
+                <select id="upd-channel" class="form-control" style="width:auto"><option value="stable">{{ lang._('Stable releases') }}</option><option value="beta">{{ lang._('Beta releases too') }}</option></select>
+                <label style="font-weight:normal;margin:0"><input type="checkbox" id="upd-auto"> {{ lang._('Install plugin updates automatically') }}</label>
+            </div>
+            <p class="l7-muted" style="margin-top:10px">{{ lang._('Releases are signed by the vendor and checked before they are installed. If a new version does not start correctly, the old one is put back automatically.') }}</p>
+            <div id="upd-fw" style="margin-top:6px"></div>
+        </div>
+        <div class="l7-card" style="grid-column:1/-1">
+            <h3>{{ lang._('Remote support') }}</h3>
+            <p class="l7-muted">{{ lang._('Lets your vendor help you from the cloud server. Switched off, nothing can be seen or changed. Every command is signed by the vendor, valid for ten minutes and listed below. You can switch this off at any time.') }}</p>
+            <select id="sup-level" class="form-control" style="width:auto;display:inline-block">
+                <option value="off">{{ lang._('Off') }}</option>
+                <option value="view">{{ lang._('View only: settings, blocked and allowed sites, events') }}</option>
+                <option value="manage">{{ lang._('Full support: view and change settings') }}</option>
+            </select>
+            <div class="l7-muted" id="sup-note" style="margin-top:8px"></div>
+            <table class="l7-table" style="margin-top:12px"><thead><tr><th>{{ lang._('Time') }}</th><th>{{ lang._('Action') }}</th><th>{{ lang._('Details') }}</th><th>{{ lang._('Result') }}</th></tr></thead><tbody id="sup-log"></tbody></table>
+        </div>
+        <div class="l7-card" style="grid-column:1/-1">
+            <h3>{{ lang._('Monitoring') }}</h3>
+            <p class="l7-muted">{{ lang._('Once a minute this firewall tells the cloud server how it is doing: CPU, memory, disk, gateways, internet, and counters of blocked traffic with the public addresses that were blocked on the way in. Your vendor uses this to see outages and support you. No browsing history, client names or user names are sent.') }}</p>
+            <label style="font-weight:normal"><input type="checkbox" id="mon-enabled"> {{ lang._('Send health and security status to the cloud server') }}</label>
+            <div class="l7-tiles" id="mon-tiles" style="margin:12px 0 0"></div>
+        </div>
     </div>
 </div>
 
@@ -78,6 +109,43 @@ $(document).ready(function () {
                     '{{ lang._('Cloud server') }}', c.error || '', cloudKind) +
             L7.tile(contact, '{{ lang._('Last check-in') }}', c.server_message || '') +
             L7.tile(c.feedUpdate ? L7.ago(c.feedUpdate) : '{{ lang._('never') }}', '{{ lang._('Last list update') }}', ''));
+        if (document.activeElement !== document.getElementById('sup-level')) { $('#sup-level').val(d.support || 'off'); }
+        $('#sup-note').text(d.support === 'manage' ? '{{ lang._('Your vendor can currently view and change settings of this plugin.') }}' : (d.support === 'view' ? '{{ lang._('Your vendor can currently only look.') }}' : '{{ lang._('Remote support is off.') }}'));
+        L7.get('/api/layer7security/license/supportlog').done(function (r) {
+            $('#sup-log').html((r.rows || []).map(function (x) {
+                return '<tr><td>' + E(new Date(x.ts * 1000).toLocaleString()) + '</td><td>' + E(x.action) + '</td><td><code>' + E(x.detail || '') + '</code></td><td>' + E(x.result || '') + '</td></tr>';
+            }).join('') || '<tr><td colspan="4" class="l7-muted">{{ lang._('Nothing yet: your vendor has not used remote support.') }}</td></tr>');
+        });
+        renderUpdates(d.updates || {});
+        var m = d.monitoring || {};
+        $('#mon-enabled').prop('checked', m.enabled !== false);
+        var mkind = m.enabled === false ? 'warn' : (m.error ? 'bad' : (m.lastOk ? 'ok' : 'warn'));
+        $('#mon-tiles').html(
+            L7.tile(m.enabled === false ? '{{ lang._('Off') }}' : (m.error ? '{{ lang._('Problem') }}' : (m.lastOk ? '{{ lang._('Reporting') }}' : '{{ lang._('Waiting') }}')),
+                    '{{ lang._('Monitoring') }}', m.error || '', mkind) +
+            L7.tile(m.lastOk ? L7.ago(m.lastOk) : '{{ lang._('never') }}', '{{ lang._('Last report') }}', m.enrolled ? '{{ lang._('Registered with the cloud server') }}' : '') +
+            L7.tile(m.alertsOpen || 0, '{{ lang._('Open alerts at the vendor') }}', '', m.alertsOpen ? 'warn' : 'ok'));
+    }
+
+    var updPoll = null;
+    function renderUpdates(u) {
+        var p = u.plugin || {}, f = u.firmware || {}, cfg = u.settings || {};
+        var st = p.state === 'installing' ? ['{{ lang._('Updating...') }}', 'warn'] : (p.state === 'failed' ? ['{{ lang._('Update failed') }}', 'bad'] : (p.available ? ['{{ lang._('Available') }}', 'warn'] : ['{{ lang._('Up to date') }}', 'ok']));
+        $('#upd-tiles').html(
+            L7.tile(p.installed || '-', '{{ lang._('Plugin version') }}', p.latest && p.available ? '{{ lang._('New') }}: ' + p.latest : '') +
+            L7.tile(st[0], '{{ lang._('Plugin updates') }}', p.error || p.blocked || (p.checked ? '{{ lang._('checked') }} ' + L7.ago(p.checked) : '{{ lang._('not checked yet') }}'), st[1]) +
+            L7.tile(f.patch_count || 0, '{{ lang._('OPNsense updates waiting') }}', f.checked ? '{{ lang._('checked') }} ' + L7.ago(f.checked) : '{{ lang._('not checked yet') }}', f.patch_count ? 'warn' : 'ok') +
+            L7.tile(f.needs_reboot ? '{{ lang._('Restart needed') }}' : '-', '{{ lang._('OPNsense restart') }}', '', f.needs_reboot ? 'warn' : ''));
+        $('#upd-notes').text(p.available && p.notes ? p.notes : '');
+        $('#upd-install').toggle(!!p.available && p.state !== 'installing').text(' {{ lang._('Install') }} ' + (p.latest || ''));
+        $('#upd-rollback').toggle(!!p.rollback && p.state !== 'installing');
+        if (document.activeElement !== document.getElementById('upd-channel')) { $('#upd-channel').val(cfg.channel || 'stable'); }
+        $('#upd-auto').prop('checked', !!cfg.auto);
+        var fw = '';
+        if (f.major) { fw += '<div class="l7-hint">' + (f.major.eol ? '<strong>{{ lang._('OPNsense') }} ' + E(f.abi || '') + ' {{ lang._('has reached end of life.') }}</strong> ' : '') + '{{ lang._('Version') }} ' + E(f.major.version) + ' {{ lang._('is available. A major upgrade needs planning.') }}</div>'; }
+        if (f.patch_count) { fw += '<div class="l7-muted">' + E(f.patches.slice(0, 6).map(function (x) { return x.name + ' ' + x.from + ' > ' + x.to; }).join(', ')) + (f.patch_count > 6 ? ' ...' : '') + '. <a href="/ui/core/firmware">{{ lang._('Install them under System > Firmware') }}</a></div>'; }
+        $('#upd-fw').html(fw);
+        if (p.state === 'installing') { if (!updPoll) { updPoll = setInterval(function () { L7.get('/api/layer7security/license/status').done(function (d) { render(d); if ((d.updates.plugin || {}).state !== 'installing') { clearInterval(updPoll); updPoll = null; } }); }, 4000); } }
     }
 
     function load() {
@@ -117,6 +185,40 @@ $(document).ready(function () {
             L7.toast(c.ok ? '{{ lang._('Checked in with the cloud server.') }}' : (c.error || '{{ lang._('The cloud server could not be reached.') }}'), c.ok ? 'ok' : 'bad');
             if (r.status) { render(r.status); }
         }).fail(function () { L7.toast('{{ lang._('The request failed.') }}', 'bad'); }).always(function () { busy(b, false); });
+    });
+    $('#mon-enabled').on('change', function () {
+        var on = $(this).prop('checked');
+        L7.post('/api/layer7security/license/monitoring', {enabled: on ? '1' : '0'}).done(function (r) {
+            L7.toast(r.ok ? (on ? '{{ lang._('Monitoring is on.') }}' : '{{ lang._('Monitoring is off.') }}') : (r.message || ''), r.ok ? 'ok' : 'bad'); load();
+        }).fail(function () { L7.toast('{{ lang._('The request failed.') }}', 'bad'); load(); });
+    });
+    $('#sup-level').on('change', function () {
+        var v = $(this).val();
+        L7.post('/api/layer7security/license/support', {level: v}).done(function (r) {
+            L7.toast(r.ok ? '{{ lang._('Saved') }}' : (r.message || ''), r.ok ? 'ok' : 'bad'); load();
+        }).fail(function () { L7.toast('{{ lang._('The request failed.') }}', 'bad'); load(); });
+    });
+    $('#upd-check').on('click', function () {
+        var b = $(this); busy(b, true);
+        L7.post('/api/layer7security/license/updatecheck', {}).done(function (r) {
+            L7.toast(r.ok ? '{{ lang._('Checked. OPNsense is looking for updates in the background.') }}' : ((r.check || {}).error || '{{ lang._('The update server could not be reached.') }}'), r.ok ? 'ok' : 'bad');
+            if (r.updates) { renderUpdates(r.updates); }
+        }).fail(function () { L7.toast('{{ lang._('The request failed.') }}', 'bad'); }).always(function () { busy(b, false); });
+    });
+    $('#upd-install').on('click', function () {
+        L7.confirm({title: '{{ lang._('Install the update?') }}', message: '{{ lang._('The plugin restarts for a few seconds. Your network traffic is not affected. If the new version does not start, the old one is restored.') }}', yes: '{{ lang._('Install') }}', cancel: '{{ lang._('Cancel') }}', onYes: function () {
+            L7.post('/api/layer7security/license/updateinstall', {}).done(function (r) { L7.toast(r.message || '', r.ok ? 'ok' : 'bad'); load(); });
+        }});
+    });
+    $('#upd-rollback').on('click', function () {
+        L7.confirm({title: '{{ lang._('Go back to the previous version?') }}', message: '', danger: true, yes: '{{ lang._('Go back') }}', cancel: '{{ lang._('Cancel') }}', onYes: function () {
+            L7.post('/api/layer7security/license/updaterollback', {}).done(function (r) { L7.toast(r.message || '', r.ok ? 'ok' : 'bad'); load(); });
+        }});
+    });
+    $('#upd-channel, #upd-auto').on('change', function () {
+        L7.post('/api/layer7security/license/updatesettings', {channel: $('#upd-channel').val(), auto: $('#upd-auto').prop('checked') ? '1' : '0'}).done(function (r) {
+            L7.toast(r.ok ? '{{ lang._('Saved') }}' : (r.message || ''), r.ok ? 'ok' : 'bad'); load();
+        });
     });
     $('#lic-copy').on('click', function () {
         if (navigator.clipboard) { navigator.clipboard.writeText($('#lic-install').text()); L7.toast('{{ lang._('Copied') }}', 'ok'); }

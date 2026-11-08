@@ -289,6 +289,10 @@ Bugs found and fixed while testing this release:
 | `qm snapshot 9101 phase8-before`, `qm snapshot 9102 phase8-before`, `qm snapshot 9103 phase8-before` | 2026-10-13, before starting 0.4.0 (descriptions "before v0.4.0 console redesign", "before v0.4.0 feeds", "before v0.4.0") |
 | `qm snapshot 9101 phase9-before --description "before v0.4.0 package upgrade test"` | before building the 0.4.0 package and upgrading the lab firewall to it |
 | `qm snapshot 9101 phase10-before`, `qm snapshot 9102 phase10-before`, `qm snapshot 9103 phase10-before` | 2026-10-14, before the 0.5.0 license module and cloud dashboard |
+| `qm start 9101` (lab was powered off), `qm snapshot 9103 phase11-before` | 2026-11-08, before the 0.6.0 threat intel merge on the cloud VM |
+| `qm snapshot 9101 phase12-before`, `qm snapshot 9103 phase12-before` | 2026-11-08, before the 0.6.0 monitoring (phase 3) |
+| `qm snapshot 9101 phase13-before`, `qm snapshot 9103 phase13-before` | 2026-11-08, before the 0.6.0 remote support (phase 4) |
+| `qm snapshot 9101 phase14-before`, `qm snapshot 9103 phase14-before` | 2026-11-08, before the 0.6.0 update channel (phase 5) |
 
 No new `qm` commands were needed for 0.2.0 (no VM was created, resized or snapshotted). 0.3.0 needed the one snapshot above and no rollback; 0.4.0 and 0.5.0 needed the snapshots above and no rollback.
 
@@ -303,6 +307,66 @@ No new `qm` commands were needed for 0.2.0 (no VM was created, resized or snapsh
   in tests; IPv6 disabled on that NIC only.
 - Stray Windows UIDs on `/usr/local` directories after a tar extraction as root;
   chowned back to root:wheel, deploy script fixed.
+
+## 0.6.0 work in progress: L7 Cloud threat intel (phases 1 and 2 of 5)
+Plan for the release (user request 2026-11-08): (1) merge of MISP and OpenCTI into the feeds, (2) manual TXT/JSON feed
+upload, (3) firewall agent with health, ISP and attack monitoring and dashboard alerts, (4) remote support (rules, blocked
+and allowed sites, change options from L7 Cloud; opt-in by the customer, signed commands, audit on both sides),
+(5) plugin and firmware update channel. Decisions: remote support is an opt-in toggle, off by default; alerts show in the
+dashboard only (no mail, Telegram or webhook yet).
+
+Phases 1 and 2 are done on the cloud VM (`cloud/server/intel.py`, dashboard page **Threat intel**):
+- Connectors: MISP `attributes/restSearch` and OpenCTI GraphQL (`indicators`, STIX patterns, old and new filter syntax),
+  per-source options (history window, target list, confidence, to_ids, warninglists), test button, secrets never returned
+  to the browser, a failing source keeps its last entries.
+- Manual upload: TXT (hosts files, `hash;family`, CSV lines), JSON (lists, objects, MISP exports, STIX bundles), preview
+  with skip reasons, optional expiry, remove later; the allowlist always wins; only public IPv4, domains and hashes.
+- Merge model: the build writes the pure lists, `base/` keeps a copy, `intel.publish()` writes `feeds/<list> = base + entries`
+  after every build, sync, upload, delete and allowlist change; the manifest names the intel sources.
+- Tests: `tests/test_intel.py` (33), `tests/ui_intel.py` (27 browser checks). Live on 9103: upload, merge, rebuild, allowlist,
+  removal all verified; MISP and OpenCTI were tested against fake servers only (no URL or key given yet).
+- Found on the way: abuse.ch ThreatFox `export/csv/recent/` now answers 410 Gone, so the `botnet` category and most
+  of `c2` are empty since then (needs an abuse.ch Auth-Key or another source: open item).
+
+Phase 3 (monitoring) done: plugin `agent.py` (cron every minute, `configctl layer7security agent-beat`, switch in Layer 7 > License),
+cloud `monitor.py` + `l7cloud-monitor.timer`, dashboard pages Monitoring (fleet, details with charts and a reporting strip) and Alerts
+with the bell, editable thresholds. Verified on the lab firewall: real reports every minute; a real outage test (routes that reject the
+three probe hosts for ~2 min) gave "no internet" in 24 s, a resolved alert and an "Internet (ISP) outage: 2 min" history entry; a simulated
+firewall went silent (raised "not reporting" after 225 s) and came back with an ISP outage log. Tests: `tests/test_monitor.py` (33),
+`tests/test_agent.py` (20), `tests/ui_monitor.py` (browser, 20 checks).
+- Found: the lab firewall had an empty (0 byte) `/var/db/layer7security/license.json` after the VM had been stopped, so the plugin was locked
+  until a lifetime key was issued again (`lic_ensure` in `tests/lic_helpers.sh`). License.php writes the key files with plain
+  `file_put_contents`; an fsync/atomic write would make this robust (open item).
+- Lab note: new cron entries need `configctl cron restart` (added to `lab/sync-plugin.sh`).
+
+Phase 4 (remote support) done: cloud `remote.py` (+ `/api/v1/support/poll`, dashboard page Remote support with Overview, Settings, Sites, Events,
+Change, History), plugin `support.py` (verify, consent check, run, audit), `support.php` (changes through the plugin model, same validation as the GUI),
+agent fast polling while a support page is open, model option `general.remoteSupport` (off / view / manage, default off), License page card with the
+customer's audit log. Tests: `tests/test_support.py` (44: signing both ways, every refusal reason, parity of the two parameter checkers, read actions,
+polling), `tests/live_support.py` (35 checks on the lab firewall: off, view, manage, rule added and removed on the firewall, option changed and restored,
+bad value refused, allowlist, audit log, consent withdrawn while a command waited) and `tests/ui_support.py` (20 browser checks). The lab firewall was
+left with remote support off and no test rules.
+- Open: https for the cloud server (the lab uses http), alert notifications by mail/Telegram, an expiry timer for the customer's consent
+  ("allow for 4 hours"), `feed_update` result detail.
+
+Phase 5 (update channel) done: cloud `releases.py` (upload, checks, signed manifest `releases/manifest.json`, withdraw), dashboard page Updates (publish, releases,
+fleet with plugin and OPNsense status), plugin `update.py` (check, install with rollback copy and health check, rollback, OPNsense firmware status from
+`/tmp/pkg_upgrade.json`), License page card Updates (install, check, go back, channel, automatic updates), new remote support actions (`updates`, `plugin_update`,
+`firmware_check`, `firmware_update`), alerts (patches waiting, restart needed, major upgrade / end of life, plugin outdated, plugin update failed). Package built
+with `lab/build-package.sh` as 0.6.0 (230 KB, zstd). Tests: `tests/test_update.py` (50), `tests/live_update.py`, `tests/ui_updates.py` (14 browser checks).
+Verified on the lab firewall: upload through the dashboard, detection, install from the customer's button (0.5.0 to 0.6.0), a failed update rolled back by itself,
+a manual rollback and a second update through remote support, and the OPNsense package updates (16 packages, php83 8.3.31 to 8.3.36, no restart) installed through
+remote support while the plugin and engine kept running.
+- **Bug found by the live test:** the cloud accepted the 0.6.0 package labelled "9.9.9", because python cannot open zstd packages and the "is it what it says" check was
+  skipped for them. Fixed on both sides: the cloud reads packages with `tar` (zstd) and refuses any it cannot read; the firewall checks the package identity with
+  `pkg query -F` before changing anything (the after-install health check and rollback had already caught it: the firewall installed it, saw 0.6.0 instead of 9.9.9
+  and went back by itself). The 9.9.9 entry is withdrawn (versions cannot be deleted). Regression tests pin both.
+- Also found and fixed: the GUI rollback ran inside configd and lost its answer when configd restarted (now detached like install and it offers the newer release
+  again afterwards); two firmware checks could start at once; a stale "update failed" stayed after the bad release was replaced; an Overview request arriving after
+  a page change drew over the new page (dashboard now drops stale page data).
+- The lab firewall runs OPNsense 26.1, which OPNsense reports as **end of life** (26.7 is the supported series): the plugin port to 26.7 is now the most important open item.
+- Open: the update channel needs https on the cloud server for real customers (the signature protects the package, not the privacy of who updates);
+  staged rollouts (a percentage of firewalls first); a "release goes live at" time.
 
 ## Known limits and open items
 - Per-VLAN/interface scopes resolve IPv4 networks; IPv6 clients must be listed

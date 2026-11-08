@@ -38,6 +38,9 @@ class LicenseController extends ApiMutableModelControllerBase
             'key' => $key === '' ? '' : substr($key, 0, 11) . '-...-' . substr($key, -5),
             'server' => (string)$this->getModel()->general->feedUrl,
             'cloud' => $cloud,
+            'monitoring' => $this->json('agent-status'),
+            'support' => (string)$this->getModel()->general->remoteSupport,
+            'updates' => $this->json('update-status'),
             'now' => time(),
         ];
     }
@@ -86,6 +89,103 @@ class LicenseController extends ApiMutableModelControllerBase
         return ['ok' => true];
     }
 
+    /** POST enabled=0|1: send (or stop sending) health and security status to the cloud server */
+    public function monitoringAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['ok' => false, 'message' => 'POST required'];
+        }
+        $on = $this->request->getPost('enabled', 'string', '1') === '1';
+        Config::getInstance()->lock();
+        $mdl = $this->getModel();
+        $mdl->general->monitoring = $on ? '1' : '0';
+        $result = $this->validate();
+        if (!empty($result['validations'])) {
+            return ['ok' => false, 'message' => 'The setting is not valid.'];
+        }
+        $this->save(false, true);
+        return ['ok' => true, 'enabled' => $on];
+    }
+
+    /** POST: look for a new plugin release now, and let OPNsense look for firmware and package updates */
+    public function updatecheckAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['ok' => false, 'message' => 'POST required'];
+        }
+        $res = $this->json('update-check');
+        (new Backend())->configdRun('layer7security update-firmware-check', true);
+        return ['ok' => !empty($res['ok']), 'check' => $res, 'updates' => $this->json('update-status')];
+    }
+
+    /** POST: install the newest release (runs in the background, the page follows the state) */
+    public function updateinstallAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['ok' => false, 'message' => 'POST required'];
+        }
+        return $this->json('update-install') ?: ['ok' => false, 'message' => 'The update could not be started.'];
+    }
+
+    /** POST: put the previous release back */
+    public function updaterollbackAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['ok' => false, 'message' => 'POST required'];
+        }
+        return $this->json('update-rollback') ?: ['ok' => false, 'message' => 'The rollback could not be done.'];
+    }
+
+    /** POST channel=stable|beta auto=0|1 */
+    public function updatesettingsAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['ok' => false, 'message' => 'POST required'];
+        }
+        $channel = (string)$this->request->getPost('channel', 'string', 'stable');
+        $auto = (string)$this->request->getPost('auto', 'string', '0') === '1' ? '1' : '0';
+        if (!in_array($channel, ['stable', 'beta'], true)) {
+            return ['ok' => false, 'message' => 'Choose stable or beta.'];
+        }
+        Config::getInstance()->lock();
+        $mdl = $this->getModel();
+        $mdl->general->updateChannel = $channel;
+        $mdl->general->autoUpdate = $auto;
+        $result = $this->validate();
+        if (!empty($result['validations'])) {
+            return ['ok' => false, 'message' => 'The setting is not valid.'];
+        }
+        $this->save(false, true);
+        return ['ok' => true];
+    }
+
+    /** POST level=off|view|manage: what the vendor may do remotely */
+    public function supportAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['ok' => false, 'message' => 'POST required'];
+        }
+        $level = (string)$this->request->getPost('level', 'string', 'off');
+        if (!in_array($level, ['off', 'view', 'manage'], true)) {
+            return ['ok' => false, 'message' => 'Choose off, view or manage.'];
+        }
+        Config::getInstance()->lock();
+        $mdl = $this->getModel();
+        $mdl->general->remoteSupport = $level;
+        $result = $this->validate();
+        if (!empty($result['validations'])) {
+            return ['ok' => false, 'message' => 'The setting is not valid.'];
+        }
+        $this->save(false, true);
+        return ['ok' => true, 'level' => $level];
+    }
+
+    /** what the vendor looked at or changed, newest first */
+    public function supportlogAction()
+    {
+        return $this->json('support-log', ['60']) + ['rows' => []];
+    }
+
     /** POST: report to the cloud server and fetch the lists now */
     public function syncAction()
     {
@@ -93,6 +193,7 @@ class LicenseController extends ApiMutableModelControllerBase
             return ['ok' => false, 'message' => 'POST required'];
         }
         $checkin = $this->json('license-checkin');
+        $this->json('agent-beat-now');
         $feeds = [];
         if (!License::locked()) {
             $feeds = $this->json('feed-update-parts', ['domains,ips,hashes,signatures']);

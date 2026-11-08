@@ -62,11 +62,19 @@ button, status tiles, and tabs (overview, rules or settings, activity log).
   and serves them to the firewalls. Its dashboard (port 8090) shows the feeds, the
   firewalls that check in and has the **license generator**.
 - **License module**: trial, yearly and lifetime keys; see [docs/LICENSING.md](docs/LICENSING.md).
+- **Threat intelligence merge** (cloud): your own MISP and OpenCTI, and manual TXT or JSON uploads, are merged into the feeds the firewalls download, with an
+  allowlist and per-source results. See [docs/CLOUD-SERVER.md](docs/CLOUD-SERVER.md).
+- **Monitoring and alerts** (cloud dashboard): every firewall reports health, gateways, internet line and blocked traffic once a minute; the dashboard shows the
+  fleet and raises alerts (firewall not reporting, ISP outage, attacks, updates waiting). No browsing history or user names are sent; the customer can switch it off.
+- **Remote support**: off by default; the customer chooses *view only* or *full support*. Commands are signed by the vendor, valid for ten minutes, run from a fixed
+  list, and written to a log the customer can read.
+- **Update channel**: signed plugin releases from the cloud server, installed with one button (or automatically) with an automatic rollback if the new version does
+  not start, and visibility of OPNsense firmware and patch updates.
 - Native OPNsense plugin: MVC GUI, REST API, configd actions, rc.d services.
 
 ## Status
 
-v0.5.0, tested on the lab described in [docs/PROGRESS.md](docs/PROGRESS.md)
+v0.6.0, tested on the lab described in [docs/PROGRESS.md](docs/PROGRESS.md)
 (OPNsense 26.1.11, end-to-end checks, browser tests, fuzzed parsers, CI on
 GitHub). It is a young project: read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 for what it does and does not do (TLS is decrypted only where you ask for it;
@@ -75,7 +83,7 @@ blocking is per address and DNS or TLS name).
 ## Install
 
 ```sh
-pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.5.0/os-layer7security-0.5.0.pkg
+pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.6.0/os-layer7security-0.6.0.pkg
 ```
 
 The package depends on `ndpi`, `sqlite3`, `squid` and `yara`. Then open the

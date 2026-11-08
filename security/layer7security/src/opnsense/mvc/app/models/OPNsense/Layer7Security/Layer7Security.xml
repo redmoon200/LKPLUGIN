@@ -1,6 +1,6 @@
 <model>
     <mount>//OPNsense/layer7security</mount>
-    <version>1.5.0</version>
+    <version>1.6.0</version>
     <description>Layer 7 Security: application visibility, policies and DNS filtering</description>
     <items>
         <general>
@@ -84,6 +84,31 @@
                 <Mask>/^https?:\/\/[A-Za-z0-9.:\/_-]{1,200}$/</Mask>
                 <ValidationMessage>Enter an http(s) URL without spaces, for example http://192.168.1.73:8080/feeds</ValidationMessage>
             </feedUrl>
+            <monitoring type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </monitoring>
+            <updateChannel type="OptionField">
+                <Default>stable</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <stable>Stable releases</stable>
+                    <beta>Beta releases too</beta>
+                </OptionValues>
+            </updateChannel>
+            <autoUpdate type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </autoUpdate>
+            <remoteSupport type="OptionField">
+                <Default>off</Default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <off>Off</off>
+                    <view>View only (settings, sites, events)</view>
+                    <manage>Full support (view and change settings)</manage>
+                </OptionValues>
+            </remoteSupport>
             <macMode type="OptionField">
                 <Default>off</Default>
                 <Required>Y</Required>

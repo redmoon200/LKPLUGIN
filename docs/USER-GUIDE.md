@@ -230,3 +230,22 @@ and the installation id of this firewall (needed for a key that is tied to it).
 - *Check in and update now*: reports to the cloud server and downloads the lists.
 - When the license ends or is withdrawn, the protection switches off by itself and
   this page opens; the network keeps working. A new key switches it on again.
+
+## Monitoring and remote support (Layer 7 > License)
+
+**Monitoring** sends your vendor, once a minute, how the firewall is doing (CPU, memory, disk, gateways and internet line, counters of blocked
+traffic and the public addresses that were blocked on the way in). No browsing history, client names or user names are sent. Switch it off with
+the checkbox.
+
+**Remote support** is **off** by default. *View only* lets your vendor look at your settings, the sites that are blocked and allowed and events
+(without client addresses). *Full support* also lets them change settings. Every command they send is signed, valid for ten minutes and listed in
+the table below the switch, including the ones the firewall refused. Switch it back to Off at any time: waiting commands are dropped.
+
+## Updates (Layer 7 > License)
+
+The **Updates** card shows the plugin version you run, the newest release from your vendor and what is new in it, and how many OPNsense package updates
+are waiting. *Install the update* installs a plugin release (the plugin restarts for a few seconds, your network traffic is not affected). Releases are signed
+by the vendor and verified before they are installed; if a new version does not start correctly the old one is put back automatically, and *Go back to the
+previous version* does it by hand. Switch on *Install plugin updates automatically* if you do not want to do this yourself. OPNsense's own updates are installed
+under System > Firmware; this card only tells you what is waiting and whether a restart or a major upgrade is due.
+

@@ -112,3 +112,11 @@ docs/                         ARCHITECTURE, USER-GUIDE, ENGINE-COMPARISON, PROGR
   The lab firewall must have a license: `tests/e2e.sh` activates a lifetime key through the dashboard API
   (`tests/lic_helpers.sh`). Tests: `tests/test_license.py`, e2e section `lic` (`tests/e2e_v05_sections.sh`),
   `tests/ui_cloud.py`. Deploy only the cloud code: `lab/deploy-cloud.sh`.
+- v0.6.0 (in progress) extends L7 Cloud: threat intel merge of MISP, OpenCTI and manual TXT/JSON uploads
+  (`cloud/server/intel.py`, dashboard page Threat intel, docs/CLOUD-SERVER.md), then firewall monitoring, remote support and
+  update channel (see docs/PROGRESS.md for the 5 phases). Tests: `tests/test_intel.py`, `tests/ui_intel.py`.
+  Monitoring (phase 3): `agent.py` on the firewall, `cloud/server/monitor.py`, tests `tests/test_{agent,monitor}.py`, `tests/ui_monitor.py`.
+  Remote support (phase 4): `cloud/server/remote.py`, `support.py` + `support.php` on the firewall, tests `tests/test_support.py`, `tests/live_support.py`, `tests/ui_support.py`.
+  Update channel (phase 5): `cloud/server/releases.py` (signed manifest, packages under `/var/lib/l7cloud/releases`), `update.py` on the firewall (check, install with
+  rollback, OPNsense firmware status), tests `tests/test_update.py`, `tests/live_update.py`. Package: `lab/build-package.sh` then upload on the Updates page.
+

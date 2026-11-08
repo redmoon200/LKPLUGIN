@@ -373,6 +373,8 @@ function layer7security_cron()
     return [
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security dns-schedule', '*']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security web-expire', '*']],
+        ['autocron' => ['/usr/local/sbin/configctl -d layer7security agent-beat', '*']],
+        ['autocron' => ['/usr/local/sbin/configctl -d layer7security update-auto', '52', '*/6']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security feed-update-auto', '17', '*/6']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security license-check', '*/15']],
         ['autocron' => ['/usr/local/sbin/configctl -d layer7security license-checkin', '27', '*']],
