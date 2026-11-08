@@ -25,7 +25,7 @@ esac
 
 version=${1:-}
 if [ -z "$version" ]; then
-	version=$(fetch -qo - "https://api.github.com/repos/$REPO/releases" 2>/dev/null | grep -o '"tag_name": *"v[0-9][0-9.]*"' | head -1 | grep -o '[0-9][0-9.]*')
+	version=$(fetch -qo - "https://api.github.com/repos/$REPO/releases" 2>/dev/null | grep -o '"tag_name": *"v[0-9][0-9.]*"' | grep -o '[0-9][0-9.]*' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
 	[ -n "$version" ] || die "could not find the newest release (is the firewall online?). Try: sh install.sh 0.6.0"
 fi
 url="https://github.com/$REPO/releases/download/v$version/os-layer7security-$version.pkg"
