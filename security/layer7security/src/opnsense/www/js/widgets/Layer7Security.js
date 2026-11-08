@@ -20,22 +20,18 @@ export default class Layer7Security extends BaseWidget {
 
     getMarkup() {
         return $(`
-            <div id="l7w-${this.id}" class="widget-content" style="padding: 10px 14px;">
-                <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center;">
-                    <a href="https://rootsecuritysolution.com" target="_blank" rel="noopener" style="flex: 0 0 auto;">
-                        <img src="/ui/img/layer7security/logo.png" alt="Rootsecurity Solutions" style="height: 56px; width: auto; background: #fff; border-radius: 8px; padding: 2px 6px;">
-                    </a>
-                    <div style="flex: 1 1 200px; min-width: 180px;">
-                        <div style="font-size: 16px; font-weight: 600;">${this.translations.product} <span id="l7w-version-${this.id}"></span></div>
-                        <div class="text-muted">${this.translations.by}
-                            <a href="https://rootsecuritysolution.com" target="_blank" rel="noopener">Rootsecurity Solutions Pvt. Ltd.</a></div>
-                    </div>
-                </div>
-                <table class="table table-condensed" style="margin: 10px 0 4px 0;">
+            <div id="l7w-${this.id}" class="widget-content" style="padding: 8px 12px; text-align: center;">
+                <a href="https://rootsecuritysolution.com" target="_blank" rel="noopener">
+                    <img src="/ui/img/layer7security/logo.png" alt="Rootsecurity Solutions" style="max-width: 100%; height: 54px; width: auto; background: #fff; border-radius: 8px; padding: 2px 6px;">
+                </a>
+                <div style="font-size: 15px; font-weight: 600; margin-top: 6px;">${this.translations.product} <span id="l7w-version-${this.id}"></span></div>
+                <div class="text-muted" style="font-size: 12px;">${this.translations.by}
+                    <a href="https://rootsecuritysolution.com" target="_blank" rel="noopener">Rootsecurity Solutions Pvt. Ltd.</a></div>
+                <table class="table table-condensed" style="margin: 8px 0 2px 0; text-align: left;">
                     <tbody>
-                        <tr><td style="width: 40%;">${this.translations.engine}</td><td id="l7w-engine-${this.id}">-</td></tr>
-                        <tr><td>${this.translations.license}</td><td id="l7w-license-${this.id}">-</td></tr>
-                        <tr><td>${this.translations.support}</td><td><a href="mailto:info@rootsecuritysolution.com">info@rootsecuritysolution.com</a></td></tr>
+                        <tr><td style="white-space: nowrap;">${this.translations.engine}</td><td id="l7w-engine-${this.id}">-</td></tr>
+                        <tr><td style="white-space: nowrap;">${this.translations.license}</td><td id="l7w-license-${this.id}">-</td></tr>
+                        <tr><td style="white-space: nowrap;">${this.translations.support}</td><td><a href="mailto:info@rootsecuritysolution.com">${this.translations.contact}</a></td></tr>
                     </tbody>
                 </table>
             </div>

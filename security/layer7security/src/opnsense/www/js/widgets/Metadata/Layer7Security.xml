@@ -13,6 +13,7 @@
             <engine>Engine</engine>
             <license>License</license>
             <support>Support</support>
+            <contact>Email us</contact>
             <running>Running</running>
             <stopped>Stopped</stopped>
             <disabled>Switched off</disabled>
