@@ -1,14 +1,4 @@
-<p align="center"><img src="docs/img/main_logo.png" alt="Rootsecurity Solutions" width="260"></p>
 
-# os-layer7security
-
-Made by **Rootsecurity Solutions Pvt. Ltd.** ([rootsecuritysolution.com](https://rootsecuritysolution.com)), Chennai, India.
-
-An open-source **Layer 7 (application-aware) security console for OPNsense 26.1**.
-It identifies the applications and websites behind your traffic with
-[nDPI](https://www.ntop.org/products/deep-packet-inspection/ndpi/), shows what is
-happening live, and lets IT support staff allow or block websites, IP addresses,
-applications, categories and AI services in a few clicks.
 
 Written from scratch. It is independent of, and not affiliated with, Zenarmor /
 Sunny Valley Networks or the OPNsense project / Deciso B.V.; it uses none of
