@@ -78,6 +78,15 @@ blocking is per address and DNS or TLS name).
 
 ## Install
 
+On the firewall (console or SSH, menu option 8 "Shell", as root) run one line. It installs what the plugin needs from the OPNsense package
+repository and then the newest plugin release from this repository:
+
+```sh
+fetch -qo - https://raw.githubusercontent.com/redmoon200/LKPLUGIN/main/install.sh | sh
+```
+
+The same line updates an installed plugin and keeps its settings. This build is for OPNsense 26.1 (the script stops on other releases). To do it by hand:
+
 The package depends on `ndpi`, `sqlite3`, `squid` and `yara`. On a fresh firewall install them first, otherwise `pkg add` stops with
 "Missing dependency":
 
