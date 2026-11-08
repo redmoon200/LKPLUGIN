@@ -61,7 +61,7 @@ opn "configctl layer7security web-expire" >/dev/null
 sleep 8
 rules_none() { api GET /api/layer7security/webcontrol/searchRule | grep -q '"total":0'; }
 check "the temporary rule is gone from the list" rules_none
-check "github.com is reachable again" reaches https://github.com
+check "github.com is reachable again" connects https://github.com
 
 echo "-- live sessions"
 cli '(curl -s --limit-rate 40k -m 70 -o /dev/null https://deb.debian.org/debian/ls-lR.gz >/dev/null 2>&1 &) ; sleep 1'

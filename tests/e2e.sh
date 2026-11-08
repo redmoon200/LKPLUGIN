@@ -20,13 +20,17 @@ check() { # description, command...
 jget()  { python -c "import json,sys; d=json.load(sys.stdin); print(eval(sys.argv[1]))" "$1" | tr -d '\015'; }
 fetch() { cli "curl -sS -o /dev/null -m 8 -w '%{http_code}' $1 2>/dev/null"; }
 reaches() { [ "$(fetch "$1")" = "200" ]; }
+# the connection was made and the site answered, whatever it answered: github.com sometimes answers 504 from its edge,
+# which still proves that the policy let the traffic through. A block over HTTPS gives no answer at all (code 000).
+connects() { [ "$(fetch "$1")" != "000" ]; }
 blocked() { # the first connection right after a rule change can slip through (documented); the next ones must not
 	_slip=0
 	for _i in 1 2 3 4; do
 		_out=$(cli "curl -sS -o /dev/null -m 8 -w '%{http_code} %{remote_ip}' $1 2>/dev/null" | tr -d '\015')
 		case "$_out" in
-		200*)
-			echo "    leak on try $_i to ${_out#200 }: $1"
+		000*) ;;
+		*)
+			echo "    leak on try $_i to ${_out#* } (HTTP ${_out%% *}): $1"
 			[ "$_i" -gt 1 ] && return 1
 			_slip=1
 			opn "sh -c 'pfctl -t l7_blk_1 -T show 2>/dev/null | head -12; tail -6 /var/log/layer7security.log'" | sed 's/^/      /';;
@@ -133,7 +137,7 @@ clear_policies
 add_policy "{\"policy\":{\"enabled\":\"1\",\"name\":\"t-allow\",\"sequence\":\"5\",\"action\":\"allow\",\"interfaces\":\"lan\",\"hosts\":\"github.com\",$ALLDAYS}}"
 add_policy "{\"policy\":{\"enabled\":\"1\",\"name\":\"t-deny-all-web\",\"sequence\":\"10\",\"action\":\"block\",\"interfaces\":\"lan\",\"categories\":\"Web,Collaborative\",$ALLDAYS}}"
 apply
-check "allow policy wins for github.com" reaches https://github.com
+check "allow policy wins for github.com" connects https://github.com
 check "category block hits other web sites" blocked https://www.wikipedia.org
 
 fi
@@ -147,7 +151,7 @@ off_s=$(printf '%02d:00' $(( (10#$h + 6) % 24 ))); off_e=$(printf '%02d:00' $(( 
 on_s=$(printf '%02d:00' $(( (10#$h + 23) % 24 ))); on_e=$(printf '%02d:00' $(( (10#$h + 1) % 24 )))
 add_policy "{\"policy\":{\"enabled\":\"1\",\"name\":\"t-off\",\"sequence\":\"10\",\"action\":\"block\",\"interfaces\":\"lan\",\"hosts\":\"github.com\",\"days\":\"sun,mon,tue,wed,thu,fri,sat\",\"startTime\":\"$off_s\",\"endTime\":\"$off_e\"}}"
 apply
-check "outside the window nothing is blocked ($off_s-$off_e, now $now)" reaches https://github.com
+check "outside the window nothing is blocked ($off_s-$off_e, now $now)" connects https://github.com
 clear_policies
 add_policy "{\"policy\":{\"enabled\":\"1\",\"name\":\"t-on\",\"sequence\":\"10\",\"action\":\"block\",\"interfaces\":\"lan\",\"hosts\":\"github.com\",\"days\":\"sun,mon,tue,wed,thu,fri,sat\",\"startTime\":\"$on_s\",\"endTime\":\"$on_e\"}}"
 apply
