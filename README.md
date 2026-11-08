@@ -110,13 +110,7 @@ from ntop and rebuild with `-DL7_NDPI_LICENSE=<value>`.
 
 ## About the maker
 
-**Rootsecurity Solutions Pvt. Ltd.** provides structured cybersecurity services: web application VAPT, API security testing, network penetration testing,
-cloud security assessment, SOC services and GRC consulting.
 
-- Website: [rootsecuritysolution.com](https://rootsecuritysolution.com)
-- Email: info@rootsecuritysolution.com, phone +91 93604 41918
-- Address: No: 16A, Auditor's Colony, Mannivakkam, Chennai - 600048, India
-- [LinkedIn](https://www.linkedin.com/in/rootsecuritysolutions), [Facebook](https://www.facebook.com/61583307814387/), [Instagram](https://www.instagram.com/root.security_official/)
 
 ## License
 
