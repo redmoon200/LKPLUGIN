@@ -137,7 +137,9 @@ thr_rules() { [ "$(opn 'pfctl -sr' | grep -c l7thr)" -ge 4 ]; }
 check "safe search: Google answers with the safe-search name" safe_g
 check "YouTube restricted mode answers with the restrict name" safe_y
 n=$(opn 'pfctl -t l7_thr_c2 -T show | wc -l' | tr -d '\015 ')
-check "the botnet address list is loaded into pf ($n entries)" test "$n" -gt 100
+# the list is the Feodo Tracker blocklist of servers that are active right now: it can be short, so compare with what the cloud publishes
+want=$(curl -s -m 20 "$L7_FEED_URL/ip/c2.txt" | grep -v '^[#;]' | grep -c .)
+check "the botnet address list is loaded into pf completely ($n of $want entries)" test "$n" -gt 0 -a "$n" = "$want"
 check "block rules exist for the threat lists" thr_rules
 sleep 2
 log=$(api GET '/api/layer7security/cfs/log?module=cfs&minutes=10&limit=50')
