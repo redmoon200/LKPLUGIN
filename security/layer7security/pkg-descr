@@ -20,6 +20,10 @@ https://github.com/redmoon200/LKPLUGIN
 Plugin Changelog
 ================
 
+0.6.2
+
+* an upgraded GUI page is shown right away (the compiled copy of the plugin pages is cleared when the package is installed)
+
 0.6.1
 
 * add the maker's logo to every page header, a footer and an About card (Layer 7 > License) with the details of Rootsecurity Solutions Pvt. Ltd.

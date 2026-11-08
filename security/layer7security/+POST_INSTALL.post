@@ -1,5 +1,9 @@
 #!/bin/sh
 
+# the GUI compiles each page once and reuses it while the page file looks unchanged. The package keeps the build
+# machine file times, so an upgraded page can look older than its compiled copy: drop ours, they are rebuilt on demand
+rm -f /var/lib/php/cache/*layer7security* 2>/dev/null || :
+
 # build the application/category catalog for the GUI selectors, then apply the
 # stored configuration (restarts the engine on upgrades)
 mkdir -p /usr/local/etc/layer7security /var/db/layer7security
