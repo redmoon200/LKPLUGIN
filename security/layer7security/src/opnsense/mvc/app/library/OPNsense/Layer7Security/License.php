@@ -11,8 +11,8 @@ namespace OPNsense\Layer7Security;
 /**
  * License of the plugin. A key is a signed record (type, issue date, length, key id,
  * optional binding to this firewall); the signature is checked with the vendor's
- * public key, which is the only thing shipped here. The same format is produced by
- * cloud/server/licenselib.py.
+ * public key, which is the only thing shipped here. The vendor's key tool, which
+ * produces the same format, is not part of this repository.
  *
  *   trial 30 days | year 365 days | lifetime (never expires)
  *
@@ -21,7 +21,7 @@ namespace OPNsense\Layer7Security;
  */
 class License
 {
-    /** vendor public key (Ed25519, raw 32 bytes, base64): set by the cloud server dashboard (Settings) */
+    /** vendor public key (Ed25519, raw 32 bytes, base64): the key of the vendor whose licenses this build accepts */
     public const PUBKEY_B64 = '2kJDQOe55A8lmYYo4Cf5EsRi/8GPXnqHLOqDt9Ed1lY=';
 
     public const DIR = '/var/db/layer7security';

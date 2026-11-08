@@ -186,16 +186,11 @@ exceptions; update the database once.
   verification, export (CSV, JSON), syslog and the privacy notice. It has its own
   privilege.
 
-## The cloud server
+## The feed server
 
-`cloud/install.sh` installs the feed server on a Debian or Ubuntu machine. Every
-hour it rebuilds from public sources: website categories, IP threat lists,
-malware hashes (MalwareBazaar, ThreatFox, VirusShare) and YARA rules, and serves
-them on port 8080 (`/feeds/manifest.json` lists what is inside and its terms).
-Enter `http://<server>:8080/feeds` under **Layer 7 > License**. The
-firewall refreshes the data every few hours by itself and reports in once an hour.
-The dashboard on port 8090 shows builds, firewalls and has the license generator
-(see [LICENSING.md](LICENSING.md)).
+The plugin downloads website categories, IP threat lists, malware hashes and YARA rules from a feed server. Its address is entered under
+**Layer 7 > License** (your vendor gives it to you). The server software is a separate product and is not part of this repository. The firewall
+refreshes the data every few hours by itself and reports in once an hour.
 
 ## Operating notes
 

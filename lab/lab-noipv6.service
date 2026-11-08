@@ -1,0 +1,12 @@
+[Unit]
+Description=Lab: no IPv6 on the management NIC (tests must go through the firewall)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'i=0; while [ ! -e /proc/sys/net/ipv6/conf/eth0/disable_ipv6 ] && [ $i -lt 30 ]; do sleep 1; i=$((i+1)); done; sysctl -w net.ipv6.conf.eth0.disable_ipv6=1'
+
+[Install]
+WantedBy=multi-user.target

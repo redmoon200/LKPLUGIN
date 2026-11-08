@@ -8,6 +8,8 @@
 
 PASS=0
 FAIL=0
+# address of the feed server the plugin downloads its lists from (the lab default is the management VM)
+L7_FEED_URL=${L7_FEED_URL:-http://192.168.1.73:8080/feeds}
 ok()   { PASS=$((PASS + 1)); echo "  PASS $1"; }
 bad()  { FAIL=$((FAIL + 1)); echo "  FAIL $1"; }
 check() { # description, command...
@@ -72,7 +74,7 @@ lic_ensure || { echo "  FAIL could not activate a license on the lab firewall"; 
 api POST /api/layer7security/settings/set '{"layer7security":{"general":{"enabled":"1","interfaces":"lan","enforce":"1","dnsFilter":"0","dnsCategories":"","dnsBlock":"","dnsAllow":""}}}' >/dev/null
 clear_policies
 clear_web
-api POST /api/layer7security/settings/set '{"layer7security":{"general":{"feedUrl":"http://192.168.1.73:8080/feeds"},"auth":{"enabled":"0","bypass":""},"dpi":{"enabled":"0","scope":"selected","exclusions":"","sites":"","caMode":"restricted"},"cfs":{"safeSearch":"0","youtube":"off","threatIps":""},"av":{"enabled":"0","yaraAction":"monitor","customHashes":""}}}' >/dev/null
+api POST /api/layer7security/settings/set '{"layer7security":{"general":{"feedUrl":"'"$L7_FEED_URL"'"},"auth":{"enabled":"0","bypass":""},"dpi":{"enabled":"0","scope":"selected","exclusions":"","sites":"","caMode":"restricted"},"cfs":{"safeSearch":"0","youtube":"off","threatIps":""},"av":{"enabled":"0","yaraAction":"monitor","customHashes":""}}}' >/dev/null
 apply
 is_running() { api GET /api/layer7security/service/status | grep -q '"running"'; }
 check "engine is running" is_running
@@ -507,7 +509,6 @@ api POST /api/layer7security/settings/set '{"layer7security":{"general":{"dnsFil
 fi
 
 . "$(dirname "$0")/e2e_v04_sections.sh"
-. "$(dirname "$0")/e2e_v05_sections.sh"
 
 if want cleanup; then
 echo "== cleanup"

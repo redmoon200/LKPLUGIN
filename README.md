@@ -57,19 +57,15 @@ button, status tiles, and tabs (overview, rules or settings, activity log).
   (cards, ID numbers, API keys, source code) and a tamper-evident audit log with
   masked excerpts, export and syslog.
 - **MAC binding**, **GeoIP filtering**, per-interface/VLAN policies, schedules.
-- **Cloud feed server** (`cloud/`): one small server that collects website
-  categories, IP threat lists, malware hashes and YARA rules from public sources
-  and serves them to the firewalls. Its dashboard (port 8090) shows the feeds, the
-  firewalls that check in and has the **license generator**.
+- **Feed server (separate product, not in this repository)**: the plugin downloads website categories, IP threat lists, malware hashes and
+  YARA rules from a feed server that you or your vendor run. Enter its address under **Layer 7 > License**.
 - **License module**: trial, yearly and lifetime keys; see [docs/LICENSING.md](docs/LICENSING.md).
-- **Threat intelligence merge** (cloud): your own MISP and OpenCTI, and manual TXT or JSON uploads, are merged into the feeds the firewalls download, with an
-  allowlist and per-source results. See [docs/CLOUD-SERVER.md](docs/CLOUD-SERVER.md).
-- **Monitoring and alerts** (cloud dashboard): every firewall reports health, gateways, internet line and blocked traffic once a minute; the dashboard shows the
-  fleet and raises alerts (firewall not reporting, ISP outage, attacks, updates waiting). No browsing history or user names are sent; the customer can switch it off.
-- **Remote support**: off by default; the customer chooses *view only* or *full support*. Commands are signed by the vendor, valid for ten minutes, run from a fixed
-  list, and written to a log the customer can read.
-- **Update channel**: signed plugin releases from the cloud server, installed with one button (or automatically) with an automatic rollback if the new version does
-  not start, and visibility of OPNsense firmware and patch updates.
+- **Monitoring** (plugin side): once a minute the plugin can report health, gateways, the internet line and counters of blocked traffic to the vendor's
+  server. No browsing history, client names or user names are sent; the customer can switch it off.
+- **Remote support** (plugin side): off by default; the customer chooses *view only* or *full support*. Commands are signed by the vendor, valid for ten
+  minutes, run from a fixed list, and written to a log the customer can read.
+- **Updates**: signed plugin releases from the vendor's server, installed with one button (or automatically) with an automatic rollback if the new
+  version does not start; the License page also shows OPNsense firmware and patch updates that are waiting.
 - Native OPNsense plugin: MVC GUI, REST API, configd actions, rc.d services.
 
 ## Status
@@ -82,22 +78,24 @@ blocking is per address and DNS or TLS name).
 
 ## Install
 
+The package depends on `ndpi`, `sqlite3`, `squid` and `yara`. On a fresh firewall install them first, otherwise `pkg add` stops with
+"Missing dependency":
+
 ```sh
+pkg update
+pkg install -y ndpi sqlite3 squid yara
 pkg add https://github.com/redmoon200/LKPLUGIN/releases/download/v0.6.0/os-layer7security-0.6.0.pkg
 ```
 
-The package depends on `ndpi`, `sqlite3`, `squid` and `yara`. Then open the
-**Layer 7** menu and follow [docs/USER-GUIDE.md](docs/USER-GUIDE.md). To get the
-category lists, bad-address lists, malware hashes and signatures, install the
-cloud server (`cloud/install.sh`, Debian or Ubuntu) and enter its address under
-**Layer 7 > License**, where you also enter a license key or start the 30-day trial.
+Then open the **Layer 7** menu and follow [docs/USER-GUIDE.md](docs/USER-GUIDE.md). To get the category lists, bad-address lists, malware hashes
+and signatures, enter the address of your feed server under **Layer 7 > License**, where you also enter a license key (or start the 30-day trial
+if your server offers it).
 
 ## Build and test
 
 See [CLAUDE.md](CLAUDE.md) for the repository layout and every command. In
 short: the engine is C (`engine/`, libpcap + nDPI + SQLite), the plugin follows
-the `opnsense/plugins` layout (`security/layer7security/`), `cloud/` is the feed
-server, `lab/` holds the Proxmox lab and deploy scripts, and `tests/` the
+the `opnsense/plugins` layout (`security/layer7security/`), `lab/` holds the Proxmox lab and deploy scripts, and `tests/` the
 end-to-end, unit and browser tests.
 
 ## nDPI licensing
@@ -106,15 +104,6 @@ nDPI is LGPL with some dual-licensed components. Since nDPI 6 the library asks
 which license applies; this project defaults to the not-for-profit LGPL mode,
 which suits open-source use. If you deploy it commercially, obtain a license
 from ntop and rebuild with `-DL7_NDPI_LICENSE=<value>`.
-
-## Data sources of the cloud server
-
-abuse.ch (URLhaus, ThreatFox, MalwareBazaar, Feodo Tracker; CC0), StevenBlack
-hosts and anudeepND (MIT), Phishing.Database (MIT), Emerging Threats, CINS Army,
-blocklist.de, Spamhaus DROP (free for non-commercial use), the Tor Project exit
-list, VirusShare hash lists, ReversingLabs open source YARA rules (MIT) and the
-project's own rules (BSD-2-Clause). Each file in the cloud manifest lists its
-sources and terms; check them before commercial use.
 
 ## License
 

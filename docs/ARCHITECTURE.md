@@ -9,7 +9,7 @@
             |   Unbound + generated include (views per source network)                |
             +-----------------------------------------------------------------------+
                                    ^ feed-update (HTTP)
-                            l7-cloud: build_feeds.py + feedserver.py
+                            vendor feed server (separate product)
    login portal (portal.py, :8444 + :8081) <-> auth.py <-> pf <l7_auth_ok>, sessions.tsv
    Squid SSL-bump + ICAP (icap_server.py: DLP, avscan.py hashes + YARA)
 ```
@@ -20,7 +20,7 @@
 |---|---|---|
 | Engine | `engine/` | C daemon. Captures with libpcap on the monitored interfaces, tracks flows in a hash table, classifies with nDPI, writes flows/events to SQLite (WAL), enforces block policies. |
 | Plugin | `security/layer7security/` | opnsense/plugins layout: MVC model, API controllers, views, configd actions, rc.d script, firewall hook. |
-| Cloud server | `cloud/` | Optional list service: builds category lists from public blocklists, serves them over HTTP to the plugin's DNS filter. |
+| Feed server | not in this repository | The lists come from a separate feed server that the vendor runs; the plugin only downloads from it. |
 | Lab | `lab/`, `tests/` | Proxmox lab scripts and the end-to-end test. |
 
 ## Data flow
@@ -286,16 +286,11 @@ than the configured limit are not hashed (the type is still logged). Detections
 are kept 90 days in `av.db`. It is not a full antivirus: it looks at one file at
 a time, does not open archives and is as good as its public rules.
 
-## Cloud feed server
+## Feed server (separate product)
 
-`cloud/server/build_feeds.py` builds, hourly: `<category>.txt` (StevenBlack,
-anudeepND, URLhaus, Phishing.Database, ThreatFox domains), `ip/<id>.txt` (Feodo,
-ThreatFox, Emerging Threats, CINS, blocklist.de, Spamhaus DROP, Tor exits; only
-public addresses are ever published), `hashes/<algo>.txt` (MalwareBazaar,
-ThreatFox, the newest VirusShare MD5 lists), `yara/` (index with checksums, the
-project's rules and the ReversingLabs rules that compile) and `manifest.json`
-with sources and licences. A source that fails never empties an existing list.
-`feedserver.py` serves only whitelisted names, with ETag and gzip. The plugin's
+The lists come from a feed server that is not part of this repository. It serves `<category>.txt` (domains per website category),
+`ip/<id>.txt` (public addresses only), `hashes/<algo>.txt`, `yara/` (an index with checksums and the rule files) and a `manifest.json`
+that names the sources and their terms. The plugin never trusts it blindly. The plugin's
 `feed_update.py` downloads with conditional requests, validates every line, and
 refreshes on its own schedule (domains 6 h, bad addresses and hashes 3 h,
 signatures 12 h; Apply downloads what is enabled but missing).
@@ -364,7 +359,5 @@ proxy, portal and pf rules. Controllers use the `LicenseGate` trait (pages redir
 the License page, APIs answer 402); the License controllers and service control are
 exempt. `license.php` (configd `license-check`, every 15 minutes) re-applies when the
 state flips between valid and locked; `license_cloud.py` does the hourly check-in and
-the trial request. The cloud side (`cloud/server/`): `licenselib.py` (keys),
-`store.py` (SQLite), `cloudcore.py` (check-in, trial, generator logic),
-`feedserver.py` (public), `dashboard.py` + `dashboard.html` (admin). See
+the trial request. The vendor side (key generation, check-in, trial) is a separate product and is not part of this repository. See
 [LICENSING.md](LICENSING.md).

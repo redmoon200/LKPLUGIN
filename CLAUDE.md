@@ -23,7 +23,7 @@ Non-goals: cloud-dependent licensing, closed-source components, TLS decryption.
 |------|------------|-----------------------------------------|--------------------------|---------|
 | 9101 | opn-l7-fw  | OPNsense 26.1.11 firewall, plugin under test | WAN vtnet1 192.168.1.12 (DHCP), LAN vtnet0 10.77.0.1/24 | running |
 | 9102 | l7-client  | Ubuntu 24.04 client behind OPNsense LAN | mgmt 192.168.1.72, LAN 10.77.0.2 | running |
-| 9103 | l7-cloud   | Ubuntu 24.04 cloud-style feed server (`cloud/`) | 192.168.1.73, :8080 | running |
+| 9103 | l7-cloud   | Ubuntu 24.04 management server VM (runs the vendor's feed server, a separate product that is not in this repository) | 192.168.1.73 | running |
 
   The OPNsense LAN is a private UDP socket NIC between 9101 and 9102 defined in
   each VM's `args:`, so no host bridge or network config is changed.
@@ -43,7 +43,6 @@ security/layer7security/      plugin, opnsense/plugins layout
   src/opnsense/scripts/OPNsense/Layer7Security/  apply.php stats.py live.py feed_update.py geo.py portal.py auth.py ... (see the directory)
   src/share/layer7security/seeds/                small DNS category seed lists
 engine/                       l7engine (C): libpcap + nDPI + SQLite + pf ioctl, geo.c, dev.c
-cloud/                        feed builder/server for the DNS filter lists
 lab/                          Proxmox + deploy scripts
 tests/e2e.sh                  end-to-end test over the REST API
 docs/                         ARCHITECTURE, USER-GUIDE, ENGINE-COMPARISON, PROGRESS
@@ -100,23 +99,14 @@ docs/                         ARCHITECTURE, USER-GUIDE, ENGINE-COMPARISON, PROGR
   one-click pages, CFS (safe search, threat IP lists, `cfs.py`), DPI-SSL scope all with a
   full CA, the sign-in portal (`portal.py`, `auth.py`, `authcheck.php`, `rc.d/layer7security_portal`),
   MD5/SHA-1/SHA-256 lists and YARA signatures (`signatures.py`, `cloudlib.py`, `feed_update.py`)
-  and the extended cloud server (`cloud/`). Engine 0.4.0: glob host patterns, signed-in user
+  and the feed server's extended lists. Engine 0.4.0: glob host patterns, signed-in user
   policies (`sessions.tsv`), 256 policies, flow updates every 5 s. Tests:
   `tests/test_live.py`, e2e sections `web appctl cfs dpi auth sig` (in `tests/e2e_v04_sections.sh`),
   `tests/ui_check.py`, `ui_crud*.py`, `ui_console.py`. Quick GUI/PHP/Python deploy without the
   engine build: `lab/sync-plugin.sh`. The OPNsense menu and ACL caches live in
   `/var/lib/php/tmp/` (not `/tmp`).
-- v0.5.0 adds the license module (`License.php`, `LicenseGate.php`, `license.php`, `license_cloud.py`,
-  `license.volt`; docs/LICENSING.md) and the cloud dashboard (`cloud/server/dashboard.py`, `dashboard.html`,
-  `cloudcore.py`, `store.py`, `licenselib.py`; port 8090, admin password in `~/.lk-secrets/cloud_admin.txt`).
-  The lab firewall must have a license: `tests/e2e.sh` activates a lifetime key through the dashboard API
-  (`tests/lic_helpers.sh`). Tests: `tests/test_license.py`, e2e section `lic` (`tests/e2e_v05_sections.sh`),
-  `tests/ui_cloud.py`. Deploy only the cloud code: `lab/deploy-cloud.sh`.
-- v0.6.0 (in progress) extends L7 Cloud: threat intel merge of MISP, OpenCTI and manual TXT/JSON uploads
-  (`cloud/server/intel.py`, dashboard page Threat intel, docs/CLOUD-SERVER.md), then firewall monitoring, remote support and
-  update channel (see docs/PROGRESS.md for the 5 phases). Tests: `tests/test_intel.py`, `tests/ui_intel.py`.
-  Monitoring (phase 3): `agent.py` on the firewall, `cloud/server/monitor.py`, tests `tests/test_{agent,monitor}.py`, `tests/ui_monitor.py`.
-  Remote support (phase 4): `cloud/server/remote.py`, `support.py` + `support.php` on the firewall, tests `tests/test_support.py`, `tests/live_support.py`, `tests/ui_support.py`.
-  Update channel (phase 5): `cloud/server/releases.py` (signed manifest, packages under `/var/lib/l7cloud/releases`), `update.py` on the firewall (check, install with
-  rollback, OPNsense firmware status), tests `tests/test_update.py`, `tests/live_update.py`. Package: `lab/build-package.sh` then upload on the Updates page.
-
+- v0.5.0 adds the license module (`License.php`, `LicenseGate.php`, `license.php`, `license_cloud.py`, `license.volt`; docs/LICENSING.md).
+  The lab firewall must have a license: `tests/e2e.sh` activates the key in the environment variable `L7_LICENSE_KEY` (a key from the vendor).
+- v0.6.0 adds monitoring (`agent.py`), remote support (`support.py`, `support.php`) and the update channel (`update.py`, OPNsense firmware status);
+  tests `tests/test_{agent,support,update}.py`. A fresh firewall needs `pkg install ndpi sqlite3 squid yara` before the package.
+  The vendor-side server (feed server, dashboard, license generator) is a separate product and is not part of this repository.

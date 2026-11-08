@@ -17,7 +17,7 @@ jobs:
         run: |
           v="${GITHUB_REF_NAME#v}"
           git archive --format=tar.gz --prefix="os-layer7security-${v}/" \
-            -o "os-layer7security-${v}-src.tar.gz" HEAD security engine cloud docs LICENSE README.md
+            -o "os-layer7security-${v}-src.tar.gz" HEAD security engine docs LICENSE README.md
           sha256sum "os-layer7security-${v}-src.tar.gz" > "os-layer7security-${v}-src.tar.gz.sha256"
 
       - name: Publish release

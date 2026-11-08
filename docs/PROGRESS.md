@@ -23,7 +23,7 @@ and `phase6-before` snapshots exist (no per-phase snapshot for P2-P5).
 |---|---|---|---|
 | 9101 | opn-l7-fw | OPNsense 26.1.11_10, WAN vtnet1 (vmbr0, DHCP, 192.168.1.12), LAN vtnet0 10.77.0.1/24, VLAN 10 `vlan0.10` = opt1 10.88.0.1/24 | mgmt over WAN SSH |
 | 9102 | l7-client | Ubuntu 24.04, test NIC ens4 10.77.0.2/24, VLAN `ens4.10` 10.88.0.2/24, mgmt eth0 192.168.1.72 (IPv6 disabled on eth0) | |
-| 9103 | l7-cloud | Ubuntu 24.04, feed server on :8080 (`cloud/`) | 192.168.1.73 |
+| 9103 | l7-cloud | Ubuntu 24.04 management server VM (runs the vendor's feed server, a separate product) | 192.168.1.73 |
 
 The OPNsense LAN is a private UDP-socket NIC between 9101 and 9102 (`args:` in
 each VM config); no bridge or network setting on the Proxmox host was changed.
@@ -174,9 +174,7 @@ Decisions that need your attention:
 - **Users and Access**: login portal, sessions, log, bypass list, group limit, idle and absolute timeout,
   throttling; engine policies for signed-in users (session map file) and per-policy pf tables.
 - **Antivirus**: MD5/SHA-1/SHA-256 lists with family names, YARA signatures, file scan tool, hash lookup.
-- **Cloud server** (VM 9103, `cloud/`): hourly build of 10 domain categories (about 400k domains), 5 IP lists
-  (about 49k addresses), hashes (1.3k SHA-256, 141 SHA-1, 197k MD5), signatures, manifest with sources and
-  licences, gzip and ETag; the firewall downloads 16 lists plus signatures in about 6 seconds.
+- **Feed server** (separate product, VM 9103): the firewall downloads 16 lists plus signatures from it in about 6 seconds.
 
 Test evidence for 0.4.0:
 - **Unit tests**: 106 (detectors 21, audit 17, ICAP 20, antivirus 18, live sessions 9, sign-in and portal 12,
@@ -206,56 +204,13 @@ Bugs found and fixed while testing this release:
 - Menu and ACL caches are in `/var/lib/php/tmp`, not `/tmp` (the sync script cleared the wrong place).
 - The e2e helpers used a literal carriage return in `tr -d`, which silently kept most rows; replaced by `\015`.
 
-Lab notes: yara installed on the firewall (`pkg install yara`) and on the cloud VM (`apt install yara`);
-the cloud VM runs `l7cloud-feed.service` and `l7cloud-build.timer`. A leftover test address alias on the
-cloud VM from 0.3.0 testing was removed.
+Lab notes: yara installed on the firewall (`pkg install yara`).
 
-## v0.5.0: license module, cloud dashboard, cleaner pages (2026-10-14)
-Requested: remove the unwanted texts (the "how to write a website rule" box, feature explanations on the
-dashboards, the cloud list tables); add a license module to the plugin; build a dashboard for the cloud server
-to monitor the feed updates and generate licenses.
+## v0.5.0: license module, cleaner pages (2026-10-14)
 
-What was built:
-- **License module** (`License.php`, `LicenseGate.php`, `license.php`, `license_cloud.py`, `license.volt`,
-  menu Layer 7 > License): trial 30 days, standard 1 year, lifetime; Ed25519 signed keys (verified with the
-  `openssl` command, OPNsense PHP has no sodium); optional binding to the installation id; renewal must run
-  longer, a lifetime key cannot be replaced; anti-rollback mark with MAC; hard lock = protection off, pages
-  redirect to the License page, APIs answer 402, **the network keeps working** (fail open). Hourly check-in with
-  the cloud server (withdraw, reinstate, replacement key) and 15-minute state check by cron. See docs/LICENSING.md.
-- **Cloud dashboard** (`cloud/server/dashboard.py`, `dashboard.html`, `cloudcore.py`, `store.py`, `licenselib.py`,
-  port 8090): overview, feeds (files, sources, rebuild with live log), firewalls, license generator (create,
-  revoke, reinstate, replace, CSV), activity, settings. The feed server logs every request and answers
-  `/api/v1/checkin` and `/api/v1/trial`; the build writes `build_status.json`.
-- **Cleanup**: removed the website-rule how-to box, the overview explanations (CFS, Antivirus, AI Inspection,
-  DPI-SSL, Web Control settings, Sign-in, AI Service, Application Control tab hints), the CFS "Cloud lists" tab
-  and the Antivirus "Malware data" tab; the cloud server address, last check-in, last list update and
-  *Check in and update now* live on the License page.
-
-Decisions that need your attention:
-- The vendor **signing key** is on the cloud VM only (`/var/lib/l7cloud/license/signing.pem`); back it up
-  offline. The matching public key is compiled into the plugin. The dashboard password is in
-  `~/.lk-secrets/cloud_admin.txt` on the build machine (printed once by `install.sh`).
-- A fresh install is locked until a key or the trial is entered. The lab firewall runs with a lifetime key.
-
-Test evidence for 0.5.0:
-- **Unit tests**: 120 (license keys and the cloud server's license logic: 13 new; audit +1).
-- **End-to-end**: full run 223 passed of 224 on the installed package; the one failure (AI audit ingest) was a
-  real bug, fixed and re-run (see below). New section `lic` (60 checks): locked state (APIs 402, engine gone,
-  network untouched), refused keys (garbage, other firewall, expired), trial (once, off switch), renewal rules,
-  withdraw and reinstate, replacement key, expiry and clock rollback with the firewall clock moved (+100 days,
-  +400 days), dashboard security and data. After the fix: `lic`, `audit`, `sig` and `av` pass on the final package.
-- **Browser**: all earlier tests plus `ui_cloud.py` (dashboard sign-in, pages, generator, revoke, phone width)
-  and `ui_license.py` (locked pages redirect, wrong key refused, key unlocks); no JavaScript errors.
-- **Package**: `os-layer7security-0.5.0.pkg` (about 210 KB) installed over 0.4.0 and again after
-  `pkg delete`; `pkg check -s` clean; the license survives a reinstall.
-
-Bugs found and fixed while testing this release:
-- AI audit ingest never recovered when the engine's event table started numbering again (retention emptied it):
-  the stored position was larger than every new id, so no new events were audited. Ingest now follows the table.
-- `note_client` overwrote the host name with an empty value when a check-in did not carry one.
-- On Windows `openssl` output has CRLF; the PEM was doubled when written back (tests only).
-- The package carried `__pycache__` files from the build machine; the build script excludes them now.
-- `check()` in the e2e helpers shared a variable with `api()`, so descriptions were sometimes wrong.
+Plugin side: the license module (`License.php`, `LicenseGate.php`, `license.php`, `license_cloud.py`, `license.volt`; see LICENSING.md) with trial, yearly and
+lifetime keys, optional tie to one firewall, the hard lock that fails open (protection off, APIs answer 402, pages open the License page, traffic is not
+touched), and cleaner pages. The vendor-side server (feed server, dashboard, license generator) is a separate product kept outside this repository.
 
 ## Bugs found and fixed while testing
 - Host-matching policies matched the DNS flow itself and put the resolver in the
@@ -308,65 +263,26 @@ No new `qm` commands were needed for 0.2.0 (no VM was created, resized or snapsh
 - Stray Windows UIDs on `/usr/local` directories after a tar extraction as root;
   chowned back to root:wheel, deploy script fixed.
 
-## 0.6.0 work in progress: L7 Cloud threat intel (phases 1 and 2 of 5)
-Plan for the release (user request 2026-11-08): (1) merge of MISP and OpenCTI into the feeds, (2) manual TXT/JSON feed
-upload, (3) firewall agent with health, ISP and attack monitoring and dashboard alerts, (4) remote support (rules, blocked
-and allowed sites, change options from L7 Cloud; opt-in by the customer, signed commands, audit on both sides),
-(5) plugin and firmware update channel. Decisions: remote support is an opt-in toggle, off by default; alerts show in the
-dashboard only (no mail, Telegram or webhook yet).
+## v0.6.0: monitoring, remote support, update channel (2026-11-08)
 
-Phases 1 and 2 are done on the cloud VM (`cloud/server/intel.py`, dashboard page **Threat intel**):
-- Connectors: MISP `attributes/restSearch` and OpenCTI GraphQL (`indicators`, STIX patterns, old and new filter syntax),
-  per-source options (history window, target list, confidence, to_ids, warninglists), test button, secrets never returned
-  to the browser, a failing source keeps its last entries.
-- Manual upload: TXT (hosts files, `hash;family`, CSV lines), JSON (lists, objects, MISP exports, STIX bundles), preview
-  with skip reasons, optional expiry, remove later; the allowlist always wins; only public IPv4, domains and hashes.
-- Merge model: the build writes the pure lists, `base/` keeps a copy, `intel.publish()` writes `feeds/<list> = base + entries`
-  after every build, sync, upload, delete and allowlist change; the manifest names the intel sources.
-- Tests: `tests/test_intel.py` (33), `tests/ui_intel.py` (27 browser checks). Live on 9103: upload, merge, rebuild, allowlist,
-  removal all verified; MISP and OpenCTI were tested against fake servers only (no URL or key given yet).
-- Found on the way: abuse.ch ThreatFox `export/csv/recent/` now answers 410 Gone, so the `botnet` category and most
-  of `c2` are empty since then (needs an abuse.ch Auth-Key or another source: open item).
+Plugin side only (the vendor-side server is a separate product kept outside this repository).
 
-Phase 3 (monitoring) done: plugin `agent.py` (cron every minute, `configctl layer7security agent-beat`, switch in Layer 7 > License),
-cloud `monitor.py` + `l7cloud-monitor.timer`, dashboard pages Monitoring (fleet, details with charts and a reporting strip) and Alerts
-with the bell, editable thresholds. Verified on the lab firewall: real reports every minute; a real outage test (routes that reject the
-three probe hosts for ~2 min) gave "no internet" in 24 s, a resolved alert and an "Internet (ISP) outage: 2 min" history entry; a simulated
-firewall went silent (raised "not reporting" after 225 s) and came back with an ISP outage log. Tests: `tests/test_monitor.py` (33),
-`tests/test_agent.py` (20), `tests/ui_monitor.py` (browser, 20 checks).
-- Found: the lab firewall had an empty (0 byte) `/var/db/layer7security/license.json` after the VM had been stopped, so the plugin was locked
-  until a lifetime key was issued again (`lic_ensure` in `tests/lic_helpers.sh`). License.php writes the key files with plain
-  `file_put_contents`; an fsync/atomic write would make this robust (open item).
-- Lab note: new cron entries need `configctl cron restart` (added to `lab/sync-plugin.sh`).
-
-Phase 4 (remote support) done: cloud `remote.py` (+ `/api/v1/support/poll`, dashboard page Remote support with Overview, Settings, Sites, Events,
-Change, History), plugin `support.py` (verify, consent check, run, audit), `support.php` (changes through the plugin model, same validation as the GUI),
-agent fast polling while a support page is open, model option `general.remoteSupport` (off / view / manage, default off), License page card with the
-customer's audit log. Tests: `tests/test_support.py` (44: signing both ways, every refusal reason, parity of the two parameter checkers, read actions,
-polling), `tests/live_support.py` (35 checks on the lab firewall: off, view, manage, rule added and removed on the firewall, option changed and restored,
-bad value refused, allowlist, audit log, consent withdrawn while a command waited) and `tests/ui_support.py` (20 browser checks). The lab firewall was
-left with remote support off and no test rules.
-- Open: https for the cloud server (the lab uses http), alert notifications by mail/Telegram, an expiry timer for the customer's consent
-  ("allow for 4 hours"), `feed_update` result detail.
-
-Phase 5 (update channel) done: cloud `releases.py` (upload, checks, signed manifest `releases/manifest.json`, withdraw), dashboard page Updates (publish, releases,
-fleet with plugin and OPNsense status), plugin `update.py` (check, install with rollback copy and health check, rollback, OPNsense firmware status from
-`/tmp/pkg_upgrade.json`), License page card Updates (install, check, go back, channel, automatic updates), new remote support actions (`updates`, `plugin_update`,
-`firmware_check`, `firmware_update`), alerts (patches waiting, restart needed, major upgrade / end of life, plugin outdated, plugin update failed). Package built
-with `lab/build-package.sh` as 0.6.0 (230 KB, zstd). Tests: `tests/test_update.py` (50), `tests/live_update.py`, `tests/ui_updates.py` (14 browser checks).
-Verified on the lab firewall: upload through the dashboard, detection, install from the customer's button (0.5.0 to 0.6.0), a failed update rolled back by itself,
-a manual rollback and a second update through remote support, and the OPNsense package updates (16 packages, php83 8.3.31 to 8.3.36, no restart) installed through
-remote support while the plugin and engine kept running.
-- **Bug found by the live test:** the cloud accepted the 0.6.0 package labelled "9.9.9", because python cannot open zstd packages and the "is it what it says" check was
-  skipped for them. Fixed on both sides: the cloud reads packages with `tar` (zstd) and refuses any it cannot read; the firewall checks the package identity with
-  `pkg query -F` before changing anything (the after-install health check and rollback had already caught it: the firewall installed it, saw 0.6.0 instead of 9.9.9
-  and went back by itself). The 9.9.9 entry is withdrawn (versions cannot be deleted). Regression tests pin both.
-- Also found and fixed: the GUI rollback ran inside configd and lost its answer when configd restarted (now detached like install and it offers the newer release
-  again afterwards); two firmware checks could start at once; a stale "update failed" stayed after the bad release was replaced; an Overview request arriving after
-  a page change drew over the new page (dashboard now drops stale page data).
-- The lab firewall runs OPNsense 26.1, which OPNsense reports as **end of life** (26.7 is the supported series): the plugin port to 26.7 is now the most important open item.
-- Open: the update channel needs https on the cloud server for real customers (the signature protects the package, not the privacy of who updates);
-  staged rollouts (a percentage of firewalls first); a "release goes live at" time.
+- **Monitoring** (`agent.py`, cron every minute, switch under Layer 7 > License): health, gateways, three internet probes, counters of blocked traffic
+  and the busiest blocked public addresses, no browsing history or user names. Outages are logged locally and sent with the next report because an
+  outage cannot be reported while it lasts. Tests: `tests/test_agent.py`; checked on the lab with a real outage (probe hosts made unreachable).
+- **Remote support** (`support.py`, `support.php`, option `general.remoteSupport`: off, view or manage; default off): commands are Ed25519 signed
+  with their own signature domain, tied to one firewall, valid for ten minutes, single use, taken from a fixed list with checked parameters, run
+  through the plugin model (no shell), and listed in a log the customer reads on the License page. The consent is checked again at the moment of running.
+  Tests: `tests/test_support.py` (every refusal reason).
+- **Updates** (`update.py`): signed plugin releases (own signature domain, checksum and size from the signed list, no older list accepted, nothing older than
+  the installed version installed), a rollback copy before every update, a health check after it and an automatic rollback, the package identity checked
+  with `pkg query -F` before anything changes, automatic updates as an option, and OPNsense firmware and patch status read from `/tmp/pkg_upgrade.json`.
+  Tests: `tests/test_update.py`.
+- **Found while testing**: a mislabelled package must be refused before it is installed (now checked on the firewall); the GUI rollback ran inside configd
+  and lost its answer when configd restarted (now detached); `pkg add` of the release stops with "Missing dependency" on a fresh firewall until
+  `pkg install ndpi sqlite3 squid yara` was run (README updated); two firewalls cloned from one disk image share an installation id; a test client whose
+  management NIC has IPv6 bypasses the firewall in blocking tests (the lab client now switches it off with a boot service, `lab/lab-noipv6.service`).
+- OPNsense reports the 26.1 series as end of life; 26.7 is built on FreeBSD 15 (nDPI 6, Squid 7, PHP 8.5), so the plugin needs a rebuild and a test on 26.7.
 
 ## Known limits and open items
 - Per-VLAN/interface scopes resolve IPv4 networks; IPv6 clients must be listed

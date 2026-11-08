@@ -9,7 +9,7 @@
 #   signatures.py status
 #   signatures.py scan FILE      rule names that match FILE (JSON), for tests
 #
-# Rule files come from the cloud server (cloud/server/build_feeds.py). Every
+# Rule files come from the vendor's feed server. Every
 # file is test-compiled on its own, so one broken rule cannot disable the rest;
 # the good ones are compiled together into one rule set that the ICAP scanner
 # uses. The scanner is the `yara` command line tool, called without a shell.

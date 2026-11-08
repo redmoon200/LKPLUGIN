@@ -39,8 +39,9 @@ jobs:
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/cloudlib.py \
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/cfs.py \
             security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/license_cloud.py \
-            cloud/server/build_feeds.py cloud/server/feedserver.py cloud/server/dashboard.py cloud/server/cloudcore.py \
-            cloud/server/store.py cloud/server/licenselib.py
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/agent.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/support.py \
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/update.py
 
       - name: XML well-formed
         run: find security -name '*.xml' -print0 | xargs -0 -n1 xmllint --noout
@@ -52,15 +53,7 @@ jobs:
             security/layer7security/src/etc/rc.d/layer7security \
             security/layer7security/src/etc/rc.d/layer7security_proxy \
             security/layer7security/src/etc/rc.d/layer7security_portal \
-            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/webexpire.sh \
-            cloud/install.sh
-
-      - name: Own YARA signatures compile and find the EICAR test file
-        run: |
-          for f in cloud/data/yara/*.yar; do yarac "$f" /tmp/out.yarc; done
-          python3 -c "open('/tmp/eicar.com','w').write('X5O!P%@AP[4' + chr(92) + 'PZX54(P^)7CC)7}\$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!\$H+H*')"
-          yarac cloud/data/yara/basic.yar /tmp/basic.yarc
-          yara -C /tmp/basic.yarc /tmp/eicar.com | grep -q L7_EICAR_Test_File
+            security/layer7security/src/opnsense/scripts/OPNsense/Layer7Security/webexpire.sh
 
       - name: GeoIP range arithmetic self-test
         run: |
@@ -83,8 +76,8 @@ jobs:
           print('ok')
           EOF
 
-      - name: Unit tests (detectors, audit log, ICAP scanner, antivirus, live sessions, sign-in, cloud feeds, license keys)
-        run: python3 -m unittest tests/test_dlp.py tests/test_audit.py tests/test_icap.py tests/test_av.py tests/test_live.py tests/test_auth.py tests/test_cloud.py tests/test_license.py
+      - name: Unit tests (detectors, audit log, ICAP scanner, antivirus, live sessions, sign-in, list downloader, monitoring agent, remote support, updates)
+        run: python3 -m unittest tests/test_dlp.py tests/test_audit.py tests/test_icap.py tests/test_av.py tests/test_live.py tests/test_auth.py tests/test_cloud.py tests/test_agent.py tests/test_support.py tests/test_update.py
 
       - name: No secrets in tree
         run: |
