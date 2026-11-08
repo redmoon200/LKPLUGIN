@@ -14,7 +14,9 @@ export default class Layer7Security extends BaseWidget {
 
     getGridOptions() {
         return {
-            minH: 2
+            minW: 4,
+            // grow with the content and scroll only beyond 650px
+            sizeToContent: 650
         };
     }
 
@@ -29,8 +31,8 @@ export default class Layer7Security extends BaseWidget {
                     <a href="https://rootsecuritysolution.com" target="_blank" rel="noopener">Rootsecurity Solutions Pvt. Ltd.</a></div>
                 <table class="table table-condensed" style="margin: 8px 0 2px 0; text-align: left;">
                     <tbody>
-                        <tr><td style="white-space: nowrap;">${this.translations.engine}</td><td id="l7w-engine-${this.id}">-</td></tr>
-                        <tr><td style="white-space: nowrap;">${this.translations.license}</td><td id="l7w-license-${this.id}">-</td></tr>
+                        <tr><td style="white-space: nowrap;">${this.translations.engine}</td><td id="l7w-engine-${this.id}" style="white-space: nowrap;">-</td></tr>
+                        <tr><td style="white-space: nowrap;">${this.translations.license}</td><td id="l7w-license-${this.id}" style="white-space: nowrap;">-</td></tr>
                         <tr><td style="white-space: nowrap;">${this.translations.support}</td><td><a href="mailto:info@rootsecuritysolution.com">${this.translations.contact}</a></td></tr>
                     </tbody>
                 </table>

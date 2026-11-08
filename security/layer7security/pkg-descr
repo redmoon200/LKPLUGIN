@@ -20,6 +20,10 @@ https://github.com/redmoon200/LKPLUGIN
 Plugin Changelog
 ================
 
+0.6.5
+
+* the Lobby widget opens wide enough to read and grows with its content
+
 0.6.4
 
 * the Lobby widget fits the narrow dashboard column (logo on top, short contact link)
