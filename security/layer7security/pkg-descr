@@ -20,6 +20,10 @@ https://github.com/redmoon200/LKPLUGIN
 Plugin Changelog
 ================
 
+0.6.3
+
+* add a Lobby dashboard widget with the maker's logo and name, the plugin version, the license and the engine state (Lobby > Add widget > Layer 7 Security)
+
 0.6.2
 
 * an upgraded GUI page is shown right away (the compiled copy of the plugin pages is cleared when the package is installed)

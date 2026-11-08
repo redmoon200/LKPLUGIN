@@ -1,0 +1,22 @@
+<metadata>
+    <layer7security>
+        <filename>Layer7Security.js</filename>
+        <link>/ui/layer7security/license</link>
+        <endpoints>
+            <endpoint>/api/layer7security/license/status</endpoint>
+            <endpoint>/api/layer7security/service/status</endpoint>
+        </endpoints>
+        <translations>
+            <title>Layer 7 Security</title>
+            <product>Layer 7 Security</product>
+            <by>by</by>
+            <engine>Engine</engine>
+            <license>License</license>
+            <support>Support</support>
+            <running>Running</running>
+            <stopped>Stopped</stopped>
+            <disabled>Switched off</disabled>
+            <days>days left</days>
+        </translations>
+    </layer7security>
+</metadata>
