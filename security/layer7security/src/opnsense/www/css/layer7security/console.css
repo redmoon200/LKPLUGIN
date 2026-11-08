@@ -108,6 +108,7 @@
     border-radius: 10px;
     padding: 14px 16px;
     margin: 0 0 16px 0;
+    min-width: 0;   /* a grid item may not grow past its column because of a wide table or a long name */
 }
 .l7-card > h3, .l7-card > .l7-card-title {
     margin: 0 0 10px 0;
@@ -115,6 +116,11 @@
     font-weight: 600;
 }
 .l7-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.l7-grid2 > * { min-width: 0; }
+/* if a table is still wider than its box (many number columns in a narrow window) the box scrolls instead of the table crossing into the next one */
+.l7-grid2 > .l7-card:has(> table.l7-table) { overflow-x: auto; }
+/* a row of boxes that hold tables: two columns of at least 440px, one column below that */
+.l7-grid-wide { grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); }
 .l7-hint {
     border-left: 3px solid var(--l7-info);
     background: var(--l7-soft);
@@ -180,6 +186,8 @@
 .l7-table tr:hover td { background: var(--l7-soft); }
 .l7-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .l7-table .mono { font-family: Menlo, Consolas, monospace; font-size: 12px; }
+/* long names (IPv6 addresses, host names, rule names) wrap inside their cell instead of pushing the table out of its box */
+.l7-table td:first-child, .l7-table td.mono { overflow-wrap: anywhere; }
 .l7-table .trunc { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .l7-table tr.blocked td { background: rgba(208, 59, 59, 0.10); }
 .l7-table tr.fresh td { animation: l7flash 1.6s ease-out; }

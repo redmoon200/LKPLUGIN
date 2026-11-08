@@ -411,7 +411,7 @@ def main():
     if cmd == 'ingest':
         out = ingest()
     elif cmd == 'list':
-        rows = max(1, min(500, int(a[1]))) if len(a) > 1 and a[1].isdigit() else 25
+        rows = max(1, min(2000, int(a[1]))) if len(a) > 1 and a[1].isdigit() else 25
         offset = int(a[2]) if len(a) > 2 and a[2].isdigit() else 0
         out = listing(rows, offset, period(a[3] if len(a) > 3 else 0), a[4] if len(a) > 4 else '-', a[5] if len(a) > 5 else '-')
     elif cmd == 'verify':

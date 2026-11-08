@@ -233,6 +233,22 @@ window.L7 = (function ($) {
     }
     $(brandInit);
 
+    /* The OPNsense grid (Tabulator) sizes itself to the height of the window: on a small window a table of 25 rows shows
+       four and scrolls inside a box of its own. Our pages let the grid grow with its rows and the page scroll instead.
+       A page can still ask for the old behaviour with options: {disableScroll: false}. */
+    function growingGrids() {
+        if (!$.fn.UIBootgrid || $.fn.UIBootgrid.l7growing) { return; }
+        var original = $.fn.UIBootgrid;
+        $.fn.UIBootgrid = function (params) {
+            params = params || {};
+            params.options = params.options || {};
+            if (params.options.disableScroll === undefined) { params.options.disableScroll = true; }
+            return original.call(this, params);
+        };
+        $.fn.UIBootgrid.l7growing = true;
+    }
+    $(growingGrids);
+
     return {
         brand: brand, esc: esc, bytes: bytes, rate: rate, dur: dur, ago: ago, when: when, num: num, pill: pill, tag: tag, tile: tile,
         empty: empty, api: api, get: get, post: post, toast: toast, confirm: confirm, apply: apply,

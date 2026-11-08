@@ -522,7 +522,7 @@ def main(argv):
     if cmd == 'status':
         out = status()
     elif cmd == 'list':
-        rows = max(1, min(500, int(argv[2]))) if len(argv) > 2 and argv[2].isdigit() else 50
+        rows = max(1, min(2000, int(argv[2]))) if len(argv) > 2 and argv[2].isdigit() else 50
         offset = int(argv[3]) if len(argv) > 3 and argv[3].isdigit() else 0
         per = int(argv[4]) if len(argv) > 4 and argv[4].isdigit() and int(argv[4]) in PERIODS else 86400
         phrase = re.sub(r'[^\w@.:/ -]', '', argv[5])[:60] if len(argv) > 5 else ''

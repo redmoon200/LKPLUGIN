@@ -27,7 +27,7 @@
                 </select>
                 <button class="btn btn-default" id="aiRefresh" type="button"><span class="fa fa-refresh"></span> {{ lang._('Refresh') }}</button>
             </div>
-            <div class="l7-grid2">
+            <div class="l7-grid2 l7-grid-wide">
                 <div class="l7-card"><h3>{{ lang._('AI services in use') }}</h3>
                     <table class="l7-table" id="tbl-ai-services"><thead><tr><th>{{ lang._('Service') }}</th><th class="num">{{ lang._('Devices') }}</th><th class="num">{{ lang._('Connections') }}</th><th class="num">{{ lang._('Down') }}</th><th class="num">{{ lang._('Up') }}</th><th class="num">{{ lang._('Blocked') }}</th></tr></thead><tbody></tbody></table></div>
                 <div class="l7-card"><h3>{{ lang._('Who uses what') }}</h3>

@@ -45,7 +45,7 @@ class AuditController extends ApiControllerBase
     {
         $current = max(1, (int)$this->request->getPost('current', 'int', 1));
         $rows = (int)$this->request->getPost('rowCount', 'int', 25);
-        $rows = ($rows < 1 || $rows > 500) ? 25 : $rows;
+        $rows = $rows < 1 ? 2000 : min($rows, 2000);   // the grid's "All" arrives as -1 or 0: one page of up to 2000 rows, more through the page buttons
         $phrase = substr(trim(preg_replace('/[^A-Za-z0-9._:\/@ -]/', '', (string)$this->request->getPost('searchPhrase', 'string', ''))), 0, 64);
         $kind = preg_replace('/[^a-z-]/', '', (string)$this->request->getPost('kind', 'string', ''));
         $this->record('view');

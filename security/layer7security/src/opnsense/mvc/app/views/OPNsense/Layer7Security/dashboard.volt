@@ -36,6 +36,9 @@
         <div class="l7-card"><h3>{{ lang._('Categories') }}</h3><div style="position:relative;height:260px"><canvas id="c-cats"></canvas></div></div>
         <div class="l7-card"><h3>{{ lang._('Top countries by volume') }}</h3><div style="position:relative;height:260px"><canvas id="c-countries"></canvas></div>
             <div class="l7-muted" id="countries-empty" style="display:none">{{ lang._('No country data yet: turn on GeoIP and update the database.') }}</div></div>
+    </div>
+
+    <div class="l7-grid2 l7-grid-wide">
         <div class="l7-card"><h3>{{ lang._('Busiest devices') }}</h3>
             <table class="l7-table" id="tbl-clients"><thead><tr><th>{{ lang._('Device') }}</th><th class="num">{{ lang._('Connections') }}</th><th class="num">{{ lang._('Download') }}</th><th class="num">{{ lang._('Upload') }}</th><th class="num">{{ lang._('Blocked') }}</th></tr></thead><tbody></tbody></table></div>
         <div class="l7-card"><h3>{{ lang._('What was stopped') }}</h3>

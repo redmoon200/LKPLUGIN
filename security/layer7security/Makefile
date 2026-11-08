@@ -1,5 +1,5 @@
 PLUGIN_NAME=		layer7security
-PLUGIN_VERSION=		0.6.5
+PLUGIN_VERSION=		0.6.6
 PLUGIN_COMMENT=		Layer 7 security console: live sessions, web and application control, content filtering, DPI-SSL, AI control and antivirus
 PLUGIN_DEPENDS=		ndpi sqlite3 squid yara
 PLUGIN_MAINTAINER=	info@rootsecuritysolution.com

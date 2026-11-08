@@ -147,7 +147,7 @@ def main():
         return
 
     if cmd == 'flows':
-        limit = to_int(sys.argv[2], 25, 1, 500)
+        limit = to_int(sys.argv[2], 25, 1, 2000)
         offset = to_int(sys.argv[3], 0, 0)
         period = to_int(sys.argv[4], 86400)
         period = period if period in PERIODS else 86400

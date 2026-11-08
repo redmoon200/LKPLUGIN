@@ -20,6 +20,11 @@ https://github.com/redmoon200/LKPLUGIN
 Plugin Changelog
 ================
 
+0.6.6
+
+* the Overview boxes "Busiest devices" and "What was stopped" no longer let a long device name or IPv6 address push the table out of its box (long names wrap, the two boxes get a row of their own)
+* the history tables (Live Sessions > History, AI Audit, Antivirus detections) grow with their rows instead of showing four rows in a small scrolling box, and offer 500 rows and "All" per page (up to 2000 per page)
+
 0.6.5
 
 * the Lobby widget opens wide enough to read and grows with its content
