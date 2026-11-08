@@ -201,8 +201,40 @@ window.L7 = (function ($) {
         }).join('');
     }
 
+    /** the maker of the plugin: shown in the page header, the footer and the About card on the License page */
+    var brand = {
+        company: 'Rootsecurity Solutions Pvt. Ltd.',
+        product: 'Layer 7 Security',
+        site: 'https://rootsecuritysolution.com',
+        email: 'info@rootsecuritysolution.com',
+        phone: '+91 93604 41918',
+        address: "No: 16A, Auditor's Colony, Mannivakkam, Chennai - 600048, India",
+        about: 'Rootsecurity provides structured cybersecurity services, VAPT, SOC, application and network security, to help organizations reduce cyber risk and build a stronger security foundation.',
+        services: ['Web Application VAPT', 'API Security Testing', 'Network Penetration Testing', 'Cloud Security Assessment', 'SOC Services', 'GRC Consulting'],
+        links: {
+            LinkedIn: 'https://www.linkedin.com/in/rootsecuritysolutions',
+            Facebook: 'https://www.facebook.com/61583307814387/',
+            Instagram: 'https://www.instagram.com/root.security_official/'
+        },
+        logo: '/ui/img/layer7security/logo.png'
+    };
+
+    function brandInit() {
+        var $root = $('.l7').first();
+        if (!$root.length) { return; }
+        if (!$root.find('.l7-brand').length) {
+            $root.find('.l7-head-side').first().prepend('<a class="l7-brand" href="' + esc(brand.site) + '" target="_blank" rel="noopener" title="' +
+                esc(brand.company) + '"><img src="' + esc(brand.logo) + '" alt="' + esc(brand.company) + '"></a>');
+        }
+        if (!$root.find('.l7-foot').length) {
+            $root.append('<div class="l7-foot">' + esc(brand.product) + ' by <a href="' + esc(brand.site) + '" target="_blank" rel="noopener">' + esc(brand.company) +
+                '</a> &middot; <a href="mailto:' + esc(brand.email) + '">' + esc(brand.email) + '</a> &middot; ' + esc(brand.phone) + '</div>');
+        }
+    }
+    $(brandInit);
+
     return {
-        esc: esc, bytes: bytes, rate: rate, dur: dur, ago: ago, when: when, num: num, pill: pill, tag: tag, tile: tile,
+        brand: brand, esc: esc, bytes: bytes, rate: rate, dur: dur, ago: ago, when: when, num: num, pill: pill, tag: tag, tile: tile,
         empty: empty, api: api, get: get, post: post, toast: toast, confirm: confirm, apply: apply,
         applyButton: applyButton, pending: pending, engineStatus: engineStatus, flag: flag, registrable: registrable,
         rememberTabs: rememberTabs, bars: bars

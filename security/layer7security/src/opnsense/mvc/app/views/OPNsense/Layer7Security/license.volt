@@ -71,6 +71,7 @@
             <label style="font-weight:normal"><input type="checkbox" id="mon-enabled"> {{ lang._('Send health and security status to the cloud server') }}</label>
             <div class="l7-tiles" id="mon-tiles" style="margin:12px 0 0"></div>
         </div>
+        <div class="l7-card" style="grid-column:1/-1" id="about-card"></div>
     </div>
 </div>
 
@@ -83,6 +84,20 @@ $(document).ready(function () {
     function dayStr(ts) { return ts ? new Date(ts * 1000).toISOString().slice(0, 10) : ''; }
     var STATE = {valid: ['Active', 'ok'], none: ['No license', 'bad'], expired: ['Expired', 'bad'], invalid: ['Invalid key', 'bad'],
                  wrongmachine: ['Other firewall', 'bad'], revoked: ['Withdrawn', 'bad'], rollback: ['Clock is behind', 'bad']};
+
+    function renderAbout(version) {
+        var b = L7.brand;
+        $('#about-card').html('<div class="l7-about"><img src="' + E(b.logo) + '" alt="' + E(b.company) + '"><div class="l7-about-text"><h3>' + E(b.product) + (version ? ' ' + E(version) : '') +
+            '</h3><p>' + E(b.about) + '</p><div class="l7-about-services">' + b.services.map(function (x) { return '<span>' + E(x) + '</span>'; }).join('') + '</div>' +
+            '<table class="l7-table"><tbody>' +
+            '<tr><td>{{ lang._('Made by') }}</td><td><strong>' + E(b.company) + '</strong></td></tr>' +
+            '<tr><td>{{ lang._('Website') }}</td><td><a href="' + E(b.site) + '" target="_blank" rel="noopener">' + E(b.site.replace('https://', '')) + '</a></td></tr>' +
+            '<tr><td>{{ lang._('Email') }}</td><td><a href="mailto:' + E(b.email) + '">' + E(b.email) + '</a></td></tr>' +
+            '<tr><td>{{ lang._('Phone') }}</td><td>' + E(b.phone) + '</td></tr>' +
+            '<tr><td>{{ lang._('Address') }}</td><td>' + E(b.address) + '</td></tr>' +
+            '<tr><td>{{ lang._('Follow us') }}</td><td>' + Object.keys(b.links).map(function (k) { return '<a href="' + E(b.links[k]) + '" target="_blank" rel="noopener">' + E(k) + '</a>'; }).join(' &middot; ') + '</td></tr>' +
+            '</tbody></table></div></div>');
+    }
 
     function render(d) {
         ST = d;
@@ -117,6 +132,7 @@ $(document).ready(function () {
             }).join('') || '<tr><td colspan="4" class="l7-muted">{{ lang._('Nothing yet: your vendor has not used remote support.') }}</td></tr>');
         });
         renderUpdates(d.updates || {});
+        renderAbout(((d.updates || {}).plugin || {}).installed);
         var m = d.monitoring || {};
         $('#mon-enabled').prop('checked', m.enabled !== false);
         var mkind = m.enabled === false ? 'warn' : (m.error ? 'bad' : (m.lastOk ? 'ok' : 'warn'));

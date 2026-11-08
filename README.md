@@ -1,4 +1,8 @@
+<p align="center"><img src="docs/img/main_logo.png" alt="Rootsecurity Solutions" width="260"></p>
+
 # os-layer7security
+
+Made by **Rootsecurity Solutions Pvt. Ltd.** ([rootsecuritysolution.com](https://rootsecuritysolution.com)), Chennai, India.
 
 An open-source **Layer 7 (application-aware) security console for OPNsense 26.1**.
 It identifies the applications and websites behind your traffic with
@@ -113,6 +117,16 @@ nDPI is LGPL with some dual-licensed components. Since nDPI 6 the library asks
 which license applies; this project defaults to the not-for-profit LGPL mode,
 which suits open-source use. If you deploy it commercially, obtain a license
 from ntop and rebuild with `-DL7_NDPI_LICENSE=<value>`.
+
+## About the maker
+
+**Rootsecurity Solutions Pvt. Ltd.** provides structured cybersecurity services: web application VAPT, API security testing, network penetration testing,
+cloud security assessment, SOC services and GRC consulting.
+
+- Website: [rootsecuritysolution.com](https://rootsecuritysolution.com)
+- Email: info@rootsecuritysolution.com, phone +91 93604 41918
+- Address: No: 16A, Auditor's Colony, Mannivakkam, Chennai - 600048, India
+- [LinkedIn](https://www.linkedin.com/in/rootsecuritysolutions), [Facebook](https://www.facebook.com/61583307814387/), [Instagram](https://www.instagram.com/root.security_official/)
 
 ## License
 

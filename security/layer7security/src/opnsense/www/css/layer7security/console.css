@@ -216,3 +216,23 @@
     .l7-tile .v { font-size: 22px; }
     .l7-grid2 { grid-template-columns: 1fr; }
 }
+
+/* ---------- maker: logo in the header, footer, About card ---------- */
+.l7-brand { display: inline-flex; align-items: center; margin-right: 8px; }
+.l7-brand img { height: 34px; width: auto; display: block; }
+@media (prefers-color-scheme: dark) { .l7-brand img, .l7-about > img { background: #f3f4f6; border-radius: 10px; padding: 3px 6px; } }
+.l7-foot {
+    margin: 28px 0 6px 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--l7-line);
+    font-size: 12px;
+    color: var(--l7-muted);
+    text-align: center;
+}
+.l7-foot a { color: inherit; text-decoration: underline; }
+.l7-about { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; }
+.l7-about > img { width: 150px; height: auto; flex: 0 0 auto; }
+.l7-about-text { flex: 1 1 280px; min-width: 260px; }
+.l7-about-text h3 { margin-top: 0; }
+.l7-about-services { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px 0; }
+.l7-about-services span { padding: 2px 10px; border-radius: 999px; border: 1px solid var(--l7-line); background: var(--l7-soft); font-size: 12px; }

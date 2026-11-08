@@ -4,16 +4,33 @@ applications and websites behind your traffic with nDPI and shows them live
 Control (wildcard website and IP rules), Application Control, content filtering
 (CFS), DPI-SSL, and antivirus for downloads (malware hashes and YARA
 signatures). Devices can be required to sign in. AI services can be controlled,
-inspected and audited. Lists and signatures come from an optional cloud feed
-server. A license key is required (a 30 day trial is available).
+inspected and audited. Lists and signatures come from a feed server that your vendor
+provides. A license key is required (a 30 day trial is available).
 
-This is an independent open-source project and is not affiliated with any
-commercial Layer 7 product.
+Made by Rootsecurity Solutions Pvt. Ltd., Chennai, India: cybersecurity
+services (VAPT, SOC, application and network security).
+info@rootsecuritysolution.com, +91 93604 41918
 
+This is an independent project and is not affiliated with any commercial
+Layer 7 product.
+
+https://rootsecuritysolution.com
 https://github.com/redmoon200/LKPLUGIN
 
 Plugin Changelog
 ================
+
+0.6.1
+
+* add the maker's logo to every page header, a footer and an About card (Layer 7 > License) with the details of Rootsecurity Solutions Pvt. Ltd.
+* say clearly which installation id a key for another firewall was refused on
+* package maintainer and web address now point to Rootsecurity Solutions Pvt. Ltd.
+
+0.6.0
+
+* add monitoring: once a minute the plugin reports health, gateways, the internet line and counters of blocked traffic to the vendor's server (switchable by the customer)
+* add remote support (off by default; view only or full support; signed single-use commands from a fixed list; a log the customer can read)
+* add the update channel: signed plugin releases installed with one button, automatic rollback, OPNsense firmware and patch status
 
 0.5.0
 

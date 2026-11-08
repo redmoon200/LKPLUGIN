@@ -279,7 +279,7 @@ class License
             return ['ok' => false, 'message' => $info['error']];
         }
         if ($info['bound'] && $info['bind'] !== bin2hex(self::bindHash(self::installId()))) {
-            return ['ok' => false, 'message' => 'This key was issued for another firewall (installation id ' . self::installId() . ').'];
+            return ['ok' => false, 'message' => 'This key was issued for a different firewall. The installation id of this firewall is ' . self::installId() . ': ask your vendor for a key for it.'];
         }
         if ($info['expires'] !== null && $info['expires'] <= time()) {
             return ['ok' => false, 'message' => 'This key has already expired.'];
